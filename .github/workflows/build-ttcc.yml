@@ -56,7 +56,7 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.7-visibility-test",
+            "version": "1.15.0-ttcc.8-screen-control-test",
             "description": "TEST ONLY: stable TTCC .5 plus experimental Home Assistant search bridge on port 8096.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
@@ -94,6 +94,8 @@ jobs:
           - DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
           - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
           - Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
+          - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
+          - TEST: POST /ttcc/search accepts auto_screen_off=true to darken after a selected film starts playing.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -111,6 +113,9 @@ jobs:
           grep -q "p4veu/ttcc" dist/service.js
           grep -q "ttcc/search" dist/service.js
           grep -q "ttcc/next" dist/service.js
+          grep -q "ttcc/screen" dist/service.js
+          grep -q "autoScreenOff" dist/userScript.js
+          grep -q "turnOnScreen" dist/userScript.js
           grep -q "8096" dist/userScript.js
           grep -q '"main": "dist/userScript.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
@@ -121,7 +126,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.7-visibility-test"
+            git commit -m "build: TTCC 1.15.0-ttcc.8-screen-control-test"
             git push
           fi
 
@@ -138,7 +143,7 @@ jobs:
           for i in $(seq 1 12); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.7-visibility-test"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.8-screen-control-test"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi

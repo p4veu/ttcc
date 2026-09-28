@@ -233,6 +233,15 @@ export function turnOffScreen() {
         window.addEventListener(type, wakeGuard, true);
     }
 }
+
+export function turnOnScreen() {
+    if (cleanupWakeGuard) {
+        cleanupWakeGuard();
+        cleanupWakeGuard = null;
+    }
+    setBlackout(false);
+    window.screenTurnedOffAt = null;
+}
 """
 (ROOT / "mods/features/turnOffScreen.js").write_text(turn_off, encoding="utf-8")
 
@@ -280,16 +289,20 @@ let haSearchNumber = 0;
 let haHidden = null;
 let haFocused = null;
 let haVisibilityState = null;
+let haScreenOff = null;
+let haAutoScreenOffArmed = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.7-visibility-test',
+        version: '1.15.0-ttcc.8-screen-control-test',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
         visibilityState: haVisibilityState,
+        screenOff: haScreenOff,
+        autoScreenOffArmed: haAutoScreenOffArmed,
         pending: !!haPendingSearch
     });
 });
@@ -304,7 +317,17 @@ app.post('/ttcc/search', (req, res) => {
     if (query.length < 1 || query.length > 160) {
         return res.status(400).json({ ok: false, error: 'query must be 1-160 chars' });
     }
-    haPendingSearch = { id: ++haSearchNumber, query };
+    haPendingSearch = { id: ++haSearchNumber, query, autoScreenOff: req.body.auto_screen_off === true };
+    return res.json({ ok: true, queued: true, id: haPendingSearch.id });
+});
+
+// Manual HA Assist screen control. These commands use the same poll/ack bridge.
+app.post('/ttcc/screen', (req, res) => {
+    const state = req.body && req.body.state;
+    if (state !== 'on' && state !== 'off') {
+        return res.status(400).json({ ok: false, error: 'state must be on or off' });
+    }
+    haPendingSearch = { id: ++haSearchNumber, screen: state };
     return res.json({ ok: true, queued: true, id: haPendingSearch.id });
 });
 
@@ -315,6 +338,8 @@ app.get('/ttcc/next', (req, res) => {
     haFocused = req.query.focus === '1' ? true : req.query.focus === '0' ? false : null;
     haVisibilityState = typeof req.query.visibility === 'string'
         ? req.query.visibility.slice(0, 32) : null;
+    haScreenOff = req.query.black === '1' ? true : req.query.black === '0' ? false : null;
+    haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;
     return res.json(haPendingSearch
         ? { pending: true, command: haPendingSearch }
         : { pending: false });
@@ -337,9 +362,63 @@ service_path.write_text(service_source.replace(service_marker, service_marker + 
 # Use the same command path as the built-in Search page, but with a spoken query.
 # This is intentionally a separate feature: none of the working Screen Off code is touched.
 ha_client = r"""import resolveCommand from '../resolveCommand.js';
+import { turnOffScreen, turnOnScreen } from './turnOffScreen.js';
 
 const HA_BRIDGE = 'http://127.0.0.1:8096/ttcc';
 let pollInProgress = false;
+let autoScreenOffArmed = false;
+let videoIdAtSearch = null;
+let autoOffExpires = 0;
+let pendingAutoOffTimer = null;
+
+function getPlaybackInfo() {
+    try {
+        const player = document.querySelector('.html5-video-player');
+        const state = player && player.getPlayerStateObject && player.getPlayerStateObject();
+        const data = player && player.getVideoData && player.getVideoData();
+        return { playing: !!(state && state.isPlaying), id: data && data.video_id || null };
+    } catch (e) {
+        return { playing: false, id: null };
+    }
+}
+
+function cancelAutoScreenOff() {
+    autoScreenOffArmed = false;
+    videoIdAtSearch = null;
+    if (pendingAutoOffTimer) {
+        clearTimeout(pendingAutoOffTimer);
+        pendingAutoOffTimer = null;
+    }
+}
+
+function armAutoScreenOffAfterSearch() {
+    cancelAutoScreenOff();
+    videoIdAtSearch = getPlaybackInfo().id;
+    autoOffExpires = Date.now() + 10 * 60 * 1000;
+    autoScreenOffArmed = true;
+}
+
+// Keep displaying search results. Only darken AFTER a different selected
+// video begins playing (not when the OK button is pressed on a result).
+function watchForSelectedVideo() {
+    if (!autoScreenOffArmed) return;
+    if (Date.now() >= autoOffExpires) {
+        cancelAutoScreenOff();
+        return;
+    }
+    const info = getPlaybackInfo();
+    if (!info.playing || !info.id || info.id === videoIdAtSearch) return;
+    autoScreenOffArmed = false;
+    const selectedId = info.id;
+    pendingAutoOffTimer = setTimeout(function () {
+        pendingAutoOffTimer = null;
+        const current = getPlaybackInfo();
+        if (current.playing && current.id === selectedId) {
+            turnOffScreen();
+        }
+    }, 1000);
+}
+setInterval(watchForSelectedVideo, 300);
 
 function youtubeSearchReady() {
     if (!window._yttv) return false;
@@ -360,7 +439,9 @@ function pollHaSearch() {
         ? (document.hasFocus() ? '1' : '0') : 'unknown';
     const visibility = encodeURIComponent(document.visibilityState || 'unknown');
     const flags = '&hidden=' + (document.hidden ? '1' : '0') +
-                  '&focus=' + focus + '&visibility=' + visibility;
+                  '&focus=' + focus + '&visibility=' + visibility +
+                  '&black=' + (document.documentElement.getAttribute('data-ttcc-screen-off') === '1' ? '1' : '0') +
+                  '&armed=' + (autoScreenOffArmed ? '1' : '0');
     fetch(HA_BRIDGE + '/next?t=' + Date.now() + flags, { cache: 'no-store' })
         .then(function (response) {
             if (!response.ok) throw new Error('HA bridge status: ' + response.status);
@@ -369,9 +450,21 @@ function pollHaSearch() {
         .then(function (data) {
             if (!data || !data.pending || !data.command) return null;
             const command = data.command;
-            if (typeof command.query !== 'string' || !command.query.trim()) return null;
-
-            resolveCommand({ searchEndpoint: { query: command.query } });
+            if (command.screen === 'on') {
+                cancelAutoScreenOff();
+                turnOnScreen();
+            } else if (command.screen === 'off') {
+                cancelAutoScreenOff();
+                turnOffScreen();
+            } else if (typeof command.query === 'string' && command.query.trim()) {
+                // Reveal any currently blackened screen to show the results.
+                turnOnScreen();
+                cancelAutoScreenOff();
+                if (command.autoScreenOff === true) armAutoScreenOffAfterSearch();
+                resolveCommand({ searchEndpoint: { query: command.query } });
+            } else {
+                return null;
+            }
 
             return fetch(HA_BRIDGE + '/ack', {
                 method: 'POST',
@@ -397,4 +490,4 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.7-visibility-test patch applied successfully")
+print("TTCC 1.15.0-ttcc.8-screen-control-test patch applied successfully")
