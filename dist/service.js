@@ -50397,16 +50397,20 @@ var haSearchNumber = 0;
 var haHidden = null;
 var haFocused = null;
 var haVisibilityState = null;
+var haScreenOff = null;
+var haAutoScreenOffArmed = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.0-ttcc.7-visibility-test',
+    version: '1.15.0-ttcc.8-screen-control-test',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
     hidden: haHidden,
     focused: haFocused,
     visibilityState: haVisibilityState,
+    screenOff: haScreenOff,
+    autoScreenOffArmed: haAutoScreenOffArmed,
     pending: !!haPendingSearch
   });
 });
@@ -50429,7 +50433,28 @@ app.post('/ttcc/search', function (req, res) {
   }
   haPendingSearch = {
     id: ++haSearchNumber,
-    query: query
+    query: query,
+    autoScreenOff: req.body.auto_screen_off === true
+  };
+  return res.json({
+    ok: true,
+    queued: true,
+    id: haPendingSearch.id
+  });
+});
+
+// Manual HA Assist screen control. These commands use the same poll/ack bridge.
+app.post('/ttcc/screen', function (req, res) {
+  var state = req.body && req.body.state;
+  if (state !== 'on' && state !== 'off') {
+    return res.status(400).json({
+      ok: false,
+      error: 'state must be on or off'
+    });
+  }
+  haPendingSearch = {
+    id: ++haSearchNumber,
+    screen: state
   };
   return res.json({
     ok: true,
@@ -50444,6 +50469,8 @@ app.get('/ttcc/next', function (req, res) {
   haHidden = req.query.hidden === '1' ? true : req.query.hidden === '0' ? false : null;
   haFocused = req.query.focus === '1' ? true : req.query.focus === '0' ? false : null;
   haVisibilityState = typeof req.query.visibility === 'string' ? req.query.visibility.slice(0, 32) : null;
+  haScreenOff = req.query.black === '1' ? true : req.query.black === '0' ? false : null;
+  haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;
   return res.json(haPendingSearch ? {
     pending: true,
     command: haPendingSearch
