@@ -114,8 +114,7 @@ jobs:
           grep -q "ttcc/search" dist/service.js
           grep -q "ttcc/next" dist/service.js
           grep -q "ttcc/screen" dist/service.js
-          grep -q "autoScreenOff" dist/userScript.js
-          grep -q "turnOnScreen" dist/userScript.js
+          grep -q "auto_screen_off" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q '"main": "dist/userScript.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
