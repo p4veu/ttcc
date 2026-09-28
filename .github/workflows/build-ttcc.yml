@@ -55,9 +55,9 @@ jobs:
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube Custom",
-            "version": "1.15.0-ttcc.5",
-            "description": "TizenTube 1.15.0 with direct Screen Off, safe wake handling, and a persistent CSS blackout that survives playback rerenders.",
+            "appName": "TizenTube HA Search TEST",
+            "version": "1.15.0-ttcc.6-ha-test",
+            "description": "TEST ONLY: stable TTCC .5 plus experimental Home Assistant search bridge on port 8096.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
             "main": "dist/userScript.js",
@@ -92,6 +92,8 @@ jobs:
           - blackout uses an html pseudo-element so resuming playback cannot remove it during a YouTube UI rerender;
           - no global display:block restore, preventing Theme Configuration from appearing on wake;
           - DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
+          - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
+          - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
           License: GPL-3.0-only
@@ -106,6 +108,9 @@ jobs:
           grep -q "10252" dist/userScript.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "p4veu/ttcc" dist/service.js
+          grep -q "ttcc/search" dist/service.js
+          grep -q "ttcc/next" dist/service.js
+          grep -q "8096" dist/userScript.js
           grep -q '"main": "dist/userScript.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
 
@@ -115,7 +120,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.5"
+            git commit -m "build: TTCC 1.15.0-ttcc.6-ha-test"
             git push
           fi
 
@@ -132,7 +137,7 @@ jobs:
           for i in $(seq 1 12); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.5"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.6-ha-test"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi

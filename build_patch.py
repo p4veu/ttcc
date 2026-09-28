@@ -257,3 +257,129 @@ replace_once(
 )
 
 print("TTCC v5 patch applied successfully")
+
+
+# Experimental HA voice search. Published to existing gh/p4veu/ttcc.
+# The confirmed working .5 remains frozen in stable-fully-working-ttcc-1.15.0-ttcc.5.
+replace_once(
+    "service/service.js",
+    "const PORT = global.isTizenTube ? 8095 : 8085;",
+    "const PORT = 8096;",
+    "HA test service port"
+)
+
+service_path = ROOT / "service/service.js"
+service_source = service_path.read_text(encoding="utf-8")
+service_marker = "app.use(cors(corsOptions));"
+ha_service = r"""
+app.use(express.json({ limit: '2kb' }));
+
+let haPendingSearch = null;
+let haLastPoll = 0;
+let haSearchNumber = 0;
+
+// Minimal read-only health check: usable from any phone on the LAN.
+app.get('/ttcc/status', (req, res) => {
+    res.json({
+        ok: true,
+        version: '1.15.0-ttcc.6-ha-test',
+        connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
+        pending: !!haPendingSearch
+    });
+});
+
+// HA will POST {"query":"Metallica"} to the TV.
+app.post('/ttcc/search', (req, res) => {
+    const input = req.body && req.body.query;
+    if (typeof input !== 'string') {
+        return res.status(400).json({ ok: false, error: 'query must be a string' });
+    }
+    const query = input.trim();
+    if (query.length < 1 || query.length > 160) {
+        return res.status(400).json({ ok: false, error: 'query must be 1-160 chars' });
+    }
+    haPendingSearch = { id: ++haSearchNumber, query };
+    return res.json({ ok: true, queued: true, id: haPendingSearch.id });
+});
+
+// YouTube is a remote https page. It polls this local bridge while TTCC runs.
+app.get('/ttcc/next', (req, res) => {
+    haLastPoll = Date.now();
+    return res.json(haPendingSearch
+        ? { pending: true, command: haPendingSearch }
+        : { pending: false });
+});
+
+// Clear only after YouTube has attempted to navigate to the search results.
+app.post('/ttcc/ack', (req, res) => {
+    const id = req.body && Number(req.body.id);
+    if (haPendingSearch && id === haPendingSearch.id) {
+        haPendingSearch = null;
+        return res.json({ ok: true });
+    }
+    return res.status(409).json({ ok: false, error: 'command no longer pending' });
+});
+"""
+if service_source.count(service_marker) != 1:
+    raise SystemExit("HA search service marker changed")
+service_path.write_text(service_source.replace(service_marker, service_marker + "\n" + ha_service, 1), encoding="utf-8")
+
+# Use the same command path as the built-in Search page, but with a spoken query.
+# This is intentionally a separate feature: none of the working Screen Off code is touched.
+ha_client = r"""import resolveCommand from '../resolveCommand.js';
+
+const HA_BRIDGE = 'http://127.0.0.1:8096/ttcc';
+let pollInProgress = false;
+
+function youtubeSearchReady() {
+    if (!window._yttv) return false;
+    for (const key in window._yttv) {
+        const entry = window._yttv[key];
+        if (entry && entry.instance && typeof entry.instance.resolveCommand === 'function') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function pollHaSearch() {
+    if (pollInProgress || !youtubeSearchReady()) return;
+    pollInProgress = true;
+
+    fetch(HA_BRIDGE + '/next?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (response) {
+            if (!response.ok) throw new Error('HA bridge status: ' + response.status);
+            return response.json();
+        })
+        .then(function (data) {
+            if (!data || !data.pending || !data.command) return null;
+            const command = data.command;
+            if (typeof command.query !== 'string' || !command.query.trim()) return null;
+
+            resolveCommand({ searchEndpoint: { query: command.query } });
+
+            return fetch(HA_BRIDGE + '/ack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: command.id })
+            });
+        })
+        .catch(function (error) {
+            console.warn('TTCC HA Search test: ' + error.message);
+        })
+        .then(function () {
+            pollInProgress = false;
+        });
+}
+
+setInterval(pollHaSearch, 1400);
+setTimeout(pollHaSearch, 2000);
+"""
+(ROOT / "mods/features/haSearch.js").write_text(ha_client, encoding="utf-8")
+
+entry = ROOT / "mods/userScript.js"
+entry_text = entry.read_text(encoding="utf-8")
+entry_text += "\nimport './features/haSearch.js';\n"
+entry.write_text(entry_text, encoding="utf-8")
+
+print("TTCC 1.15.0-ttcc.6-ha-test patch applied successfully")
