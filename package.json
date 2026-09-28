@@ -1,8 +1,8 @@
 {
   "name": "ttcc",
-  "appName": "TizenTube Custom",
-  "version": "1.15.0-ttcc.5",
-  "description": "TizenTube 1.15.0 with direct Screen Off, safe wake handling, and a persistent CSS blackout that survives playback rerenders.",
+  "appName": "TizenTube HA Search TEST",
+  "version": "1.15.0-ttcc.6-ha-test",
+  "description": "TEST ONLY: stable TTCC .5 plus experimental Home Assistant search bridge on port 8096.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
   "main": "dist/userScript.js",

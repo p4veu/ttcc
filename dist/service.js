@@ -50388,7 +50388,76 @@ var corsOptions = {
   optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions));
-var PORT = commonjsGlobal.isTizenTube ? 8095 : 8085;
+app.use(express.json({
+  limit: '2kb'
+}));
+var haPendingSearch = null;
+var haLastPoll = 0;
+var haSearchNumber = 0;
+
+// Minimal read-only health check: usable from any phone on the LAN.
+app.get('/ttcc/status', function (req, res) {
+  res.json({
+    ok: true,
+    version: '1.15.0-ttcc.6-ha-test',
+    connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
+    pending: !!haPendingSearch
+  });
+});
+
+// HA will POST {"query":"Metallica"} to the TV.
+app.post('/ttcc/search', function (req, res) {
+  var input = req.body && req.body.query;
+  if (typeof input !== 'string') {
+    return res.status(400).json({
+      ok: false,
+      error: 'query must be a string'
+    });
+  }
+  var query = input.trim();
+  if (query.length < 1 || query.length > 160) {
+    return res.status(400).json({
+      ok: false,
+      error: 'query must be 1-160 chars'
+    });
+  }
+  haPendingSearch = {
+    id: ++haSearchNumber,
+    query: query
+  };
+  return res.json({
+    ok: true,
+    queued: true,
+    id: haPendingSearch.id
+  });
+});
+
+// YouTube is a remote https page. It polls this local bridge while TTCC runs.
+app.get('/ttcc/next', function (req, res) {
+  haLastPoll = Date.now();
+  return res.json(haPendingSearch ? {
+    pending: true,
+    command: haPendingSearch
+  } : {
+    pending: false
+  });
+});
+
+// Clear only after YouTube has attempted to navigate to the search results.
+app.post('/ttcc/ack', function (req, res) {
+  var id = req.body && Number(req.body.id);
+  if (haPendingSearch && id === haPendingSearch.id) {
+    haPendingSearch = null;
+    return res.json({
+      ok: true
+    });
+  }
+  return res.status(409).json({
+    ok: false,
+    error: 'command no longer pending'
+  });
+});
+var PORT = 8096;
 var apps = {
   "YouTube": {
     name: "YouTube",
