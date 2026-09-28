@@ -277,13 +277,19 @@ app.use(express.json({ limit: '2kb' }));
 let haPendingSearch = null;
 let haLastPoll = 0;
 let haSearchNumber = 0;
+let haHidden = null;
+let haFocused = null;
+let haVisibilityState = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.6-ha-test',
+        version: '1.15.0-ttcc.7-visibility-test',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
+        hidden: haHidden,
+        focused: haFocused,
+        visibilityState: haVisibilityState,
         pending: !!haPendingSearch
     });
 });
@@ -305,6 +311,10 @@ app.post('/ttcc/search', (req, res) => {
 // YouTube is a remote https page. It polls this local bridge while TTCC runs.
 app.get('/ttcc/next', (req, res) => {
     haLastPoll = Date.now();
+    haHidden = req.query.hidden === '1' ? true : req.query.hidden === '0' ? false : null;
+    haFocused = req.query.focus === '1' ? true : req.query.focus === '0' ? false : null;
+    haVisibilityState = typeof req.query.visibility === 'string'
+        ? req.query.visibility.slice(0, 32) : null;
     return res.json(haPendingSearch
         ? { pending: true, command: haPendingSearch }
         : { pending: false });
@@ -346,7 +356,12 @@ function pollHaSearch() {
     if (pollInProgress || !youtubeSearchReady()) return;
     pollInProgress = true;
 
-    fetch(HA_BRIDGE + '/next?t=' + Date.now(), { cache: 'no-store' })
+    const focus = typeof document.hasFocus === 'function'
+        ? (document.hasFocus() ? '1' : '0') : 'unknown';
+    const visibility = encodeURIComponent(document.visibilityState || 'unknown');
+    const flags = '&hidden=' + (document.hidden ? '1' : '0') +
+                  '&focus=' + focus + '&visibility=' + visibility;
+    fetch(HA_BRIDGE + '/next?t=' + Date.now() + flags, { cache: 'no-store' })
         .then(function (response) {
             if (!response.ok) throw new Error('HA bridge status: ' + response.status);
             return response.json();
@@ -382,4 +397,4 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.6-ha-test patch applied successfully")
+print("TTCC 1.15.0-ttcc.7-visibility-test patch applied successfully")

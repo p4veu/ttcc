@@ -56,7 +56,7 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.6-ha-test",
+            "version": "1.15.0-ttcc.7-visibility-test",
             "description": "TEST ONLY: stable TTCC .5 plus experimental Home Assistant search bridge on port 8096.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
@@ -93,6 +93,7 @@ jobs:
           - no global display:block restore, preventing Theme Configuration from appearing on wake;
           - DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
           - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
+          - Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -120,7 +121,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.6-ha-test"
+            git commit -m "build: TTCC 1.15.0-ttcc.7-visibility-test"
             git push
           fi
 
@@ -137,7 +138,7 @@ jobs:
           for i in $(seq 1 12); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.6-ha-test"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.7-visibility-test"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi
