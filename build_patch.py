@@ -268,7 +268,7 @@ replace_once(
 print("TTCC v5 patch applied successfully")
 
 
-# Experimental HA voice search. Published to existing gh/p4veu/ttcc.
+# Experimental HA search + screen-control bridge. Published to existing gh/p4veu/ttcc.
 # The confirmed working .5 remains frozen in stable-fully-working-ttcc-1.15.0-ttcc.5.
 replace_once(
     "service/service.js",
