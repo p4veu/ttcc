@@ -1,7 +1,7 @@
 {
   "name": "ttcc",
   "appName": "TizenTube HA Search TEST",
-  "version": "1.15.0-ttcc.6-ha-test",
+  "version": "1.15.0-ttcc.7-visibility-test",
   "description": "TEST ONLY: stable TTCC .5 plus experimental Home Assistant search bridge on port 8096.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",

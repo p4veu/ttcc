@@ -11,6 +11,7 @@ Changes:
 - no global display:block restore, preventing Theme Configuration from appearing on wake;
 - DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
 - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
+- Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube

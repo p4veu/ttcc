@@ -50394,13 +50394,19 @@ app.use(express.json({
 var haPendingSearch = null;
 var haLastPoll = 0;
 var haSearchNumber = 0;
+var haHidden = null;
+var haFocused = null;
+var haVisibilityState = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.0-ttcc.6-ha-test',
+    version: '1.15.0-ttcc.7-visibility-test',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
+    hidden: haHidden,
+    focused: haFocused,
+    visibilityState: haVisibilityState,
     pending: !!haPendingSearch
   });
 });
@@ -50435,6 +50441,9 @@ app.post('/ttcc/search', function (req, res) {
 // YouTube is a remote https page. It polls this local bridge while TTCC runs.
 app.get('/ttcc/next', function (req, res) {
   haLastPoll = Date.now();
+  haHidden = req.query.hidden === '1' ? true : req.query.hidden === '0' ? false : null;
+  haFocused = req.query.focus === '1' ? true : req.query.focus === '0' ? false : null;
+  haVisibilityState = typeof req.query.visibility === 'string' ? req.query.visibility.slice(0, 32) : null;
   return res.json(haPendingSearch ? {
     pending: true,
     command: haPendingSearch
