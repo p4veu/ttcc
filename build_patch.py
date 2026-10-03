@@ -296,7 +296,7 @@ let haAutoScreenOffArmed = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.8-screen-control-test',
+        version: '1.15.0-ttcc.9-playlists',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -318,6 +318,20 @@ app.post('/ttcc/search', (req, res) => {
         return res.status(400).json({ ok: false, error: 'query must be 1-160 chars' });
     }
     haPendingSearch = { id: ++haSearchNumber, query, autoScreenOff: req.body.auto_screen_off === true };
+    return res.json({ ok: true, queued: true, id: haPendingSearch.id });
+});
+
+// HA will POST {"playlist_id":"PL..."} to open and start a playlist on the TV.
+app.post('/ttcc/playlist', (req, res) => {
+    const input = req.body && req.body.playlist_id;
+    if (typeof input !== 'string') {
+        return res.status(400).json({ ok: false, error: 'playlist_id must be a string' });
+    }
+    const playlistId = input.trim();
+    if (!/^[A-Za-z0-9_-]{10,120}$/.test(playlistId)) {
+        return res.status(400).json({ ok: false, error: 'invalid playlist_id' });
+    }
+    haPendingSearch = { id: ++haSearchNumber, playlistId };
     return res.json({ ok: true, queued: true, id: haPendingSearch.id });
 });
 
@@ -456,6 +470,32 @@ function pollHaSearch() {
             } else if (command.screen === 'off') {
                 cancelAutoScreenOff();
                 turnOffScreen();
+            } else if (typeof command.playlistId === 'string' && command.playlistId.trim()) {
+                // Open the exact playlist using YouTube's playlist browse endpoint.
+                turnOnScreen();
+                cancelAutoScreenOff();
+                const playlistId = command.playlistId.trim();
+                resolveCommand({ browseEndpoint: { browseId: 'VL' + playlistId } });
+
+                // YouTube TV normally focuses Play all / the first item on entry.
+                // Press Enter shortly afterwards so a voice command starts playback.
+                setTimeout(function () {
+                    try {
+                        const down = document.createEvent('Event');
+                        down.initEvent('keydown', true, true);
+                        down.keyCode = 13;
+                        down.which = 13;
+                        document.dispatchEvent(down);
+
+                        const up = document.createEvent('Event');
+                        up.initEvent('keyup', true, true);
+                        up.keyCode = 13;
+                        up.which = 13;
+                        document.dispatchEvent(up);
+                    } catch (e) {
+                        console.warn('TTCC playlist autoplay: ' + e.message);
+                    }
+                }, 1400);
             } else if (typeof command.query === 'string' && command.query.trim()) {
                 // Reveal any currently blackened screen to show the results.
                 turnOnScreen();
@@ -490,4 +530,4 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.8-screen-control-test patch applied successfully")
+print("TTCC 1.15.0-ttcc.9-playlists patch applied successfully")
