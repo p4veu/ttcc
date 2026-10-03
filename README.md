@@ -14,6 +14,7 @@ Changes:
 - Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
 - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
 - TEST: POST /ttcc/search accepts auto_screen_off=true to darken after a selected film starts playing.
+- TEST: POST /ttcc/playlist opens a playlist by playlist_id and attempts to start playback.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube
