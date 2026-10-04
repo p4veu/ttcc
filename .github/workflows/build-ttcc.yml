@@ -2,7 +2,7 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, feature/ttcc-chapters]
+    branches: [main, feature/ttcc-chapters, feature/ttcc-chapters-ui]
     paths:
       - build_patch.py
       - chapter_patch.py
@@ -65,7 +65,7 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.10-chapters",
+            "version": "1.15.0-ttcc.11-chapters-ui",
             "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
@@ -106,7 +106,8 @@ jobs:
           - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
           - TEST: POST /ttcc/search accepts auto_screen_off=true to darken after a selected film starts playing.
           - TEST: POST /ttcc/playlist opens a playlist by playlist_id and attempts to start playback.
-          - TEST: Chapters appear on the playback bar with the current chapter name; one fallback metadata request per video.
+          - TEST: Chapter markers and the selected chapter name appear on the playback bar; one fallback metadata request per video.
+          - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -151,7 +152,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.10-chapters"
+            git commit -m "build: TTCC 1.15.0-ttcc.11-chapters-ui"
             git push
           fi
 
@@ -170,7 +171,7 @@ jobs:
           for i in $(seq 1 12); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.10-chapters"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.11-chapters-ui"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi

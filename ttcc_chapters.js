@@ -9,6 +9,7 @@ let currentChapter = -1;
 let fetchTimer = null;
 let overlay = null;
 let titleNode = null;
+let markedSignature = null;
 
 const at = (object, ...keys) => keys.reduce((value, key) => value && value[key], object);
 const textOf = (value) => value?.simpleText || value?.runs?.map(run => run.text || '').join('') || '';
@@ -124,29 +125,55 @@ function clearOverlay() {
     overlay = null;
     titleNode = null;
     currentChapter = -1;
+    markedSignature = null;
+}
+
+function ensureOverlay() {
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'ttcc-chapters';
+        // Incremental DOM regularly replaces the slider's children. Keep the
+        // overlay outside that tree to avoid flickering and repeated rebuilds.
+        overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483646;display:none;';
+        titleNode = document.createElement('div');
+        titleNode.style.cssText = 'position:absolute;left:0;bottom:24px;max-width:70%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:rgba(0,0,0,.8);color:#fff;padding:5px 10px;font-size:20px;border-radius:5px;';
+        overlay.appendChild(titleNode);
+        document.documentElement.appendChild(overlay);
+    }
+}
+
+function visible(element) {
+    for (let node = element; node && node !== document.body; node = node.parentElement) {
+        const style = window.getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) < 0.05) return false;
+    }
+    return true;
 }
 
 function draw() {
     const record = chapterCache.get(currentId);
-    const video = document.querySelector('video');
+    const video = currentVideo || document.querySelector('video');
     const slider = document.querySelector('div[idomkey="slider"]');
     if (!record || !video || !slider || !Number.isFinite(video.duration) || video.duration <= 0) {
-        clearOverlay();
+        if (overlay) overlay.style.display = 'none';
         return;
     }
-    if (overlay?.parentNode !== slider) clearOverlay();
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'ttcc-chapters';
-        overlay.style.cssText = 'position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:12;';
-        titleNode = document.createElement('div');
-        titleNode.style.cssText = 'position:absolute;left:0;bottom:24px;max-width:55%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:rgba(0,0,0,.72);color:#fff;padding:3px 8px;font-size:16px;border-radius:4px;';
-        overlay.appendChild(titleNode);
-        slider.appendChild(overlay);
+    ensureOverlay();
+    const rect = slider.getBoundingClientRect();
+    if (!visible(slider) || rect.width < 100 || rect.height < 1 || rect.top < 0 || rect.top >= window.innerHeight) {
+        overlay.style.display = 'none';
+        return;
     }
-    // Rebuild only if the video or its duration changed, never on timeupdate.
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    overlay.style.display = 'block';
+
+    // YouTube can rebuild its own bar at any time. Our markers are recreated
+    // only for a different video or duration, not on each UI repaint.
     const signature = currentId + ':' + video.duration + ':' + record.chapters.length;
-    if (overlay.dataset.signature !== signature) {
+    if (markedSignature !== signature) {
         overlay.querySelectorAll('.ttcc-chapter-tick').forEach(node => node.remove());
         for (const chapter of record.chapters.slice(1)) {
             if (chapter.time >= video.duration) continue;
@@ -156,16 +183,39 @@ function draw() {
             tick.style.left = (100 * chapter.time / video.duration) + '%';
             overlay.appendChild(tick);
         }
-        overlay.dataset.signature = signature;
+        markedSignature = signature;
         currentChapter = -1;
     }
     updateTitle();
 }
 
+function seekTime(video) {
+    const progress = document.querySelector('ytlr-progress-bar');
+    const control = progress?.querySelector('[role="slider"][aria-valuenow]');
+    if (control) {
+        const value = Number(control.getAttribute('aria-valuenow'));
+        const min = Number(control.getAttribute('aria-valuemin') || 0);
+        const max = Number(control.getAttribute('aria-valuemax'));
+        if (Number.isFinite(value) && Number.isFinite(max) && max > min && value >= min && value <= max) {
+            return video.duration * (value - min) / (max - min);
+        }
+    }
+    const bar = document.querySelector('div[idomkey="slider"]');
+    const head = progress?.querySelector('.ytLrProgressBarPlayhead');
+    if (bar && head) {
+        const b = bar.getBoundingClientRect();
+        const h = head.getBoundingClientRect();
+        if (b.width > 0 && h.width >= 0 && h.left >= b.left - 5 && h.left <= b.right + 5) {
+            return video.duration * Math.max(0, Math.min(1, (h.left + h.width / 2 - b.left) / b.width));
+        }
+    }
+    return video.currentTime;
+}
+
 function updateTitle() {
     const chapters = chapterCache.get(currentId)?.chapters;
     if (!titleNode || !currentVideo || !chapters) return;
-    const time = currentVideo.currentTime;
+    const time = seekTime(currentVideo);
     let index = 0;
     for (let i = 1; i < chapters.length && chapters[i].time <= time; i++) index = i;
     if (index !== currentChapter) {
@@ -198,6 +248,15 @@ function tick() {
     }
     if (id && chapterCache.has(id)) draw();
 }
+
+// During remote-control seeking, the preview can move before <video>
+// emits timeupdate. Read the progress control after the arrow has been handled.
+window.addEventListener('keydown', event => {
+    const code = event.keyCode || event.which;
+    if (code !== 37 && code !== 39) return;
+    setTimeout(updateTitle, 80);
+    setTimeout(updateTitle, 260);
+}, false);
 
 window.ttccChapters = () => ({ videoId: currentId,
     count: chapterCache.get(currentId)?.chapters.length || 0,
