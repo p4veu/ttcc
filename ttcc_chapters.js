@@ -10,6 +10,9 @@ let fetchTimer = null;
 let overlay = null;
 let titleNode = null;
 let markedSignature = null;
+let seekingUntil = 0;
+let seekRefreshTimer = null;
+let seekFollowupTimer = null;
 
 const at = (object, ...keys) => keys.reduce((value, key) => value && value[key], object);
 const textOf = (value) => value?.simpleText || value?.runs?.map(run => run.text || '').join('') || '';
@@ -189,8 +192,65 @@ function draw() {
     updateTitle();
 }
 
+function parseClock(value, duration) {
+    if (typeof value !== 'string') return null;
+    const parts = value.trim().split('/')[0].trim().split(':');
+    if (parts.length < 2 || parts.length > 3 || parts.some(part => !/^\d{1,3}$/.test(part))) return null;
+    const seconds = parts.map(Number).reduce((total, part) => total * 60 + part, 0);
+    return seconds >= 0 && seconds <= duration + 2 ? seconds : null;
+}
+
+function previewTime(video, progress) {
+    if (Date.now() >= seekingUntil || !progress) return null;
+
+    // Leanback updates its visible seek clock while the video remains at the
+    // old position. Read that clock before looking at the playback playhead.
+    const clocks = [
+        progress.querySelector('[idomkey="elapsedTime"]'),
+        progress.querySelector('[idomkey="previewTime"]'),
+        progress.querySelector('[idomkey="seekTime"]'),
+        document.querySelector('[idomkey="elapsedTime"]')
+    ];
+    for (const node of clocks) {
+        const time = parseClock(node?.textContent, video.duration);
+        if (time !== null && Math.abs(time - video.currentTime) > 1) return time;
+    }
+
+    // Preview clocks have changed names across Leanback builds. Inspect only
+    // short, visible leaf labels near the progress bar while an arrow is held.
+    const labels = progress.parentElement?.querySelectorAll('[idomkey], [class*="Time"]') || [];
+    for (const node of labels) {
+        if (node.children?.length || /duration/i.test(node.getAttribute('idomkey') || '')) continue;
+        const time = parseClock(node.textContent, video.duration);
+        if (time === null || Math.abs(time - video.currentTime) <= 1 ||
+            Math.abs(time - video.duration) <= 1 || !visible(node)) continue;
+        const rect = node.getBoundingClientRect();
+        const barTop = progress.getBoundingClientRect().top;
+        if (rect.top >= barTop - 250 && rect.top <= barTop + 100) return time;
+    }
+
+    // Some Leanback layouts place the thumbnail/preview cursor on the bar
+    // rather than exposing a time label. Use its position if it is visible.
+    const bar = document.querySelector('div[idomkey="slider"]');
+    if (!bar) return null;
+    const bounds = bar.getBoundingClientRect();
+    if (bounds.width <= 0) return null;
+    const cursors = progress.querySelectorAll('[idomkey*="scrub"], [idomkey*="preview"], [class*="Scrubber"], [class*="SeekPreview"]');
+    for (const cursor of cursors) {
+        const rect = cursor.getBoundingClientRect();
+        if (!visible(cursor) || rect.width <= 0 || rect.width > bounds.width / 4) continue;
+        const center = rect.left + rect.width / 2;
+        if (center < bounds.left - 5 || center > bounds.right + 5) continue;
+        const time = video.duration * Math.max(0, Math.min(1, (center - bounds.left) / bounds.width));
+        if (Math.abs(time - video.currentTime) > 1) return time;
+    }
+    return null;
+}
+
 function seekTime(video) {
     const progress = document.querySelector('ytlr-progress-bar');
+    const preview = previewTime(video, progress);
+    if (preview !== null) return preview;
     const control = progress?.querySelector('[role="slider"][aria-valuenow]');
     if (control) {
         const value = Number(control.getAttribute('aria-valuenow'));
@@ -253,10 +313,17 @@ function tick() {
 // emits timeupdate. Read the progress control after the arrow has been handled.
 window.addEventListener('keydown', event => {
     const code = event.keyCode || event.which;
+    if (code === 13 || code === 27 || code === 10009) {
+        seekingUntil = 0;
+        return;
+    }
     if (code !== 37 && code !== 39) return;
-    setTimeout(updateTitle, 80);
-    setTimeout(updateTitle, 260);
-}, false);
+    seekingUntil = Date.now() + 2200;
+    if (seekRefreshTimer) clearTimeout(seekRefreshTimer);
+    if (seekFollowupTimer) clearTimeout(seekFollowupTimer);
+    seekRefreshTimer = setTimeout(updateTitle, 80);
+    seekFollowupTimer = setTimeout(updateTitle, 300);
+}, true);
 
 window.ttccChapters = () => ({ videoId: currentId,
     count: chapterCache.get(currentId)?.chapters.length || 0,
