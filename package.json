@@ -1,8 +1,8 @@
 {
   "name": "ttcc",
   "appName": "TizenTube HA Search TEST",
-  "version": "1.15.0-ttcc.9-playlists",
-  "description": "TEST ONLY: stable TTCC .5 plus Home Assistant search, screen and playlist bridge on port 8096.",
+  "version": "1.15.0-ttcc.10-chapters",
+  "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
   "main": "dist/userScript.js",

@@ -15,6 +15,7 @@ Changes:
 - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
 - TEST: POST /ttcc/search accepts auto_screen_off=true to darken after a selected film starts playing.
 - TEST: POST /ttcc/playlist opens a playlist by playlist_id and attempts to start playback.
+- TEST: Chapters appear on the playback bar with the current chapter name; one fallback metadata request per video.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube

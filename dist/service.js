@@ -50399,18 +50399,20 @@ var haFocused = null;
 var haVisibilityState = null;
 var haScreenOff = null;
 var haAutoScreenOffArmed = null;
+var haChapterCount = 0;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.0-ttcc.9-playlists',
+    version: '1.15.0-ttcc.10-chapters',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
     hidden: haHidden,
     focused: haFocused,
     visibilityState: haVisibilityState,
     screenOff: haScreenOff,
     autoScreenOffArmed: haAutoScreenOffArmed,
+    chapterCount: haChapterCount,
     pending: !!haPendingSearch
   });
 });
@@ -50498,6 +50500,7 @@ app.get('/ttcc/next', function (req, res) {
   haVisibilityState = typeof req.query.visibility === 'string' ? req.query.visibility.slice(0, 32) : null;
   haScreenOff = req.query.black === '1' ? true : req.query.black === '0' ? false : null;
   haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;
+  haChapterCount = Math.max(0, Math.min(200, Number(req.query.chapters) || 0));
   return res.json(haPendingSearch ? {
     pending: true,
     command: haPendingSearch
