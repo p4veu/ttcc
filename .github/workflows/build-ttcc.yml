@@ -2,9 +2,12 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/ttcc-chapters]
     paths:
       - build_patch.py
+      - chapter_patch.py
+      - ttcc_chapters.js
+      - test_chapters.mjs
       - .github/workflows/build-ttcc.yml
   workflow_dispatch:
 
@@ -34,6 +37,12 @@ jobs:
       - name: Apply TTCC patch
         run: python3 build_patch.py upstream
 
+      - name: Apply chapter patch
+        run: python3 chapter_patch.py upstream
+
+      - name: Test chapter extraction
+        run: node test_chapters.mjs
+
       - name: Build userscript
         working-directory: upstream/mods
         run: |
@@ -56,8 +65,8 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.9-playlists",
-            "description": "TEST ONLY: stable TTCC .5 plus Home Assistant search, screen and playlist bridge on port 8096.",
+            "version": "1.15.0-ttcc.10-chapters",
+            "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
             "main": "dist/userScript.js",
@@ -97,6 +106,7 @@ jobs:
           - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
           - TEST: POST /ttcc/search accepts auto_screen_off=true to darken after a selected film starts playing.
           - TEST: POST /ttcc/playlist opens a playlist by playlist_id and attempts to start playback.
+          - TEST: Chapters appear on the playback bar with the current chapter name; one fallback metadata request per video.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -117,21 +127,36 @@ jobs:
           grep -q "ttcc/screen" dist/service.js
           grep -q "ttcc/playlist" dist/service.js
           grep -q "auto_screen_off" dist/service.js
+          grep -q "ttcc-chapters" dist/userScript.js
+          grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q '"main": "dist/userScript.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
 
+      - name: Upload test module
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ttcc-chapters-test
+          path: |
+            dist/
+            package.json
+            README.md
+            LICENSE
+
       - name: Commit generated module
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.9-playlists"
+            git commit -m "build: TTCC 1.15.0-ttcc.10-chapters"
             git push
           fi
 
       - name: Purge jsDelivr cache
+        if: github.ref == 'refs/heads/main'
         run: |
           for path in package.json dist/userScript.js dist/service.js; do
             echo "Purging $path"
@@ -140,11 +165,12 @@ jobs:
           done
 
       - name: Verify jsDelivr serves current version
+        if: github.ref == 'refs/heads/main'
         run: |
           for i in $(seq 1 12); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.9-playlists"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.10-chapters"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi
