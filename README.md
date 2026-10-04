@@ -17,6 +17,7 @@ Changes:
 - TEST: POST /ttcc/playlist opens a playlist by playlist_id and attempts to start playback.
 - TEST: Chapter markers and the selected chapter name appear on the playback bar; one fallback metadata request per video.
 - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
+- Chapter title tracks the preview clock while seeking before the position is confirmed.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube
