@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 let chapterTick;
+let onKeydown;
 globalThis.window = {
     innerHeight: 1080,
-    addEventListener() {},
+    addEventListener(type, listener) { if (type === 'keydown') onKeydown = listener; },
     getComputedStyle() { return { display: 'block', visibility: 'visible', opacity: '1' }; }
 };
 globalThis.setInterval = callback => { chapterTick = callback; return 1; };
@@ -98,12 +99,14 @@ const html = new Node('html');
 const body = new Node('body');
 let slider = new Node('slider');
 let preview = 65;
+let previewClock = null;
 const progress = { querySelector(selector) {
+    if (selector === '[idomkey="elapsedTime"]') return previewClock;
     if (selector !== '[role="slider"][aria-valuenow]') return null;
     return { getAttribute(name) {
         return ({ 'aria-valuenow': String(preview), 'aria-valuemin': '0', 'aria-valuemax': '180' })[name];
     } };
-} };
+}, querySelectorAll() { return []; } };
 const video = { duration: 180, currentTime: 10,
     addEventListener() {}, removeEventListener() {} };
 globalThis.location = { hash: '#/watch?v=abcdefghijk' };
@@ -111,7 +114,8 @@ globalThis.document = {
     documentElement: html, body,
     createElement: tag => new Node(tag),
     querySelector: selector => ({ video, 'div[idomkey="slider"]': slider,
-        'ytlr-progress-bar': progress })[selector] || null
+        'ytlr-progress-bar': progress,
+        '[idomkey="elapsedTime"]': previewClock })[selector] || null
 };
 
 chapterTick();
@@ -126,4 +130,27 @@ assert.equal(html.children[0], overlay);
 assert.equal(html.children.length, 1);
 assert.equal(overlay.children[0].textContent, 'Wynik');
 
-console.log('Chapter extraction and persistent overlay checks passed');
+// TV seek preview changes while playback is still at 10 seconds and its
+// ordinary playhead/ARIA value is stale. The visible preview clock wins.
+preview = 65;
+chapterTick();
+assert.equal(overlay.children[0].textContent, 'Test');
+previewClock = { textContent: '2:10' };
+onKeydown({ keyCode: 39 });
+chapterTick();
+assert.equal(video.currentTime, 10);
+assert.equal(overlay.children[0].textContent, 'Wynik');
+previewClock = null;
+preview = 130;
+progress.getBoundingClientRect = () => ({ top: 700 });
+progress.parentElement = { querySelectorAll: () => [{
+    children: [], textContent: '1:05',
+    getAttribute: () => 'seek-preview-time',
+    getBoundingClientRect: () => ({ top: 680 }),
+    parentElement: null
+}] };
+onKeydown({ keyCode: 37 });
+chapterTick();
+assert.equal(overlay.children[0].textContent, 'Test');
+
+console.log('Chapter extraction, overlay, and seek-preview checks passed');
