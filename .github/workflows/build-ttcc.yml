@@ -160,22 +160,24 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           for path in package.json dist/userScript.js dist/service.js; do
-            echo "Purging $path"
-            curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc/$path"
-            echo
+            for ref in "" "@main" "@latest"; do
+              echo "Purging ${path} ${ref}"
+              curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
+              echo
+            done
           done
 
       - name: Verify jsDelivr serves current version
         if: github.ref == 'refs/heads/main'
         run: |
-          for i in $(seq 1 12); do
+          for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
             if echo "$body" | grep -q '"version": "1.15.0-ttcc.11-chapters-ui"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi
-            echo "Still stale; retry $i/12..."
+            echo "Still stale; retry $i/60..."
             sleep 5
           done
           echo "jsDelivr still serves stale metadata."
