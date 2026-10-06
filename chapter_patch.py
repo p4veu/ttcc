@@ -33,9 +33,6 @@ replace_once('service/service.js',
              'let haAutoScreenOffArmed = null;',
              'let haAutoScreenOffArmed = null;\nlet haChapterCount = 0;')
 replace_once('service/service.js',
-             "version: '1.15.0-ttcc.9-playlists',",
-             "version: '1.15.0-ttcc.12-seek-preview',")
-replace_once('service/service.js',
              'autoScreenOffArmed: haAutoScreenOffArmed,\n        pending:',
              'autoScreenOffArmed: haAutoScreenOffArmed,\n        chapterCount: haChapterCount,\n        pending:')
 replace_once('service/service.js',
