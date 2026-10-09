@@ -57,11 +57,16 @@ screen_wrapper = """        if (engagementActionButton) {
                     const res = origScreenOffActionButton.apply(this, arguments);
                     if (!Array.isArray(res)) return res;
 
+                    // A row containing only injected actions has no native
+                    // focus target. Leanback can hide its controls on RIGHT
+                    // when it tries to move into that synthetic row.
+                    const hasNativeAction = res.some(item => item &&
+                        item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED' &&
+                        item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN');
+                    if (!hasNativeAction) return res;
+
                     if (!res.find(item => item.type === 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN')) {
-                        // Keep YouTube's native first engagement action in place.
-                        // On this TV putting Screen Off first can break RIGHT navigation
-                        // from the main player controls into the engagement-action row.
-                        res.push(screenOffCommand);
+                        res.unshift(screenOffCommand);
                     }
 
                     return res;
@@ -297,7 +302,7 @@ let haAutoScreenOffArmed = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.13-focus-nav',
+        version: '1.15.0-ttcc.14-focus-guard',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -531,4 +536,4 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.13-focus-nav patch applied successfully")
+print("TTCC 1.15.0-ttcc.14-focus-guard patch applied successfully")
