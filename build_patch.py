@@ -302,7 +302,7 @@ let haAutoScreenOffArmed = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.14-focus-guard',
+        version: '1.15.0-ttcc.15-resume-test',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -533,7 +533,130 @@ setTimeout(pollHaSearch, 2000);
 
 entry = ROOT / "mods/userScript.js"
 entry_text = entry.read_text(encoding="utf-8")
-entry_text += "\nimport './features/haSearch.js';\n"
+entry_text += "\nimport './features/haSearch.js';\nimport './features/resumePlayback.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.14-focus-guard patch applied successfully")
+resume_playback = r"""// On Tizen 5 the suspended video element can stop accepting new streams
+// after the user switches to another app. Keep the first recovery local to
+// the player; reload YouTube only when an attempted resume makes no progress.
+import resolveCommand from '../resolveCommand.js';
+
+const RECOVERY_KEY = '__ttcc_resume_once';
+let playbackBeforeHide = null;
+let recoveryTimer = null;
+let recoveryAttempted = false;
+
+function video() {
+    return document.querySelector('video');
+}
+
+function videoId() {
+    try {
+        const player = document.querySelector('.html5-video-player');
+        return player && player.getVideoData && player.getVideoData().video_id || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function clearRecovery() {
+    if (recoveryTimer) clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+}
+
+function restoreAfterReload() {
+    let snapshot = null;
+    try {
+        snapshot = JSON.parse(sessionStorage.getItem(RECOVERY_KEY));
+        sessionStorage.removeItem(RECOVERY_KEY);
+    } catch (_) {}
+    if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id) ||
+        Date.now() - snapshot.at > 30000) return;
+
+    let tries = 0;
+    const wait = setInterval(function () {
+        if (++tries > 30) return clearInterval(wait);
+        if (!window._yttv || !video()) return;
+        clearInterval(wait);
+        // The browser can restore the video itself. Navigate only if it did not.
+        setTimeout(function () {
+            if (videoId() === snapshot.id) return;
+            const watchEndpoint = { videoId: snapshot.id };
+            if (Number.isFinite(snapshot.time) && snapshot.time > 0) {
+                watchEndpoint.startTimeSeconds = Math.floor(snapshot.time);
+            }
+            resolveCommand({ watchEndpoint: watchEndpoint });
+        }, 2000);
+    }, 300);
+}
+
+function reloadStalledPlayer(snapshot) {
+    if (recoveryAttempted || document.hidden) return;
+    recoveryAttempted = true;
+    try {
+        if (snapshot.id) sessionStorage.setItem(RECOVERY_KEY,
+            JSON.stringify({ id: snapshot.id, time: snapshot.time, at: Date.now() }));
+    } catch (_) {}
+    console.warn('TTCC: playback stalled after resume; refreshing YouTube player');
+    window.location.reload();
+}
+
+function checkProgress(snapshot, originalVideo, initialTime) {
+    clearRecovery();
+    recoveryTimer = setTimeout(function () {
+        recoveryTimer = null;
+        if (document.hidden || video() !== originalVideo ||
+            videoId() !== snapshot.id) return;
+        if (originalVideo.currentTime > initialTime + 0.5) return;
+        // One retry allows the network and media decoder to settle after resume.
+        try {
+            const result = originalVideo.play();
+            if (result && result.catch) result.catch(function () {});
+        } catch (_) {}
+        recoveryTimer = setTimeout(function () {
+            recoveryTimer = null;
+            if (!document.hidden && video() === originalVideo &&
+                videoId() === snapshot.id &&
+                originalVideo.currentTime <= initialTime + 0.5) {
+                reloadStalledPlayer(snapshot);
+            }
+        }, 7000);
+    }, 5000);
+}
+
+document.addEventListener('visibilitychange', function () {
+    clearRecovery();
+    if (document.hidden) {
+        const current = video();
+        playbackBeforeHide = current && !current.paused && !current.ended
+            ? { element: current, id: videoId(), time: current.currentTime } : null;
+        if (playbackBeforeHide) {
+            // Stop the decoder before Tizen suspends this app.
+            try { current.pause(); } catch (_) {}
+        }
+        return;
+    }
+
+    const snapshot = playbackBeforeHide;
+    playbackBeforeHide = null;
+    if (!snapshot || !snapshot.id || recoveryAttempted) return;
+    recoveryTimer = setTimeout(function () {
+        recoveryTimer = null;
+        const current = video();
+        if (document.hidden || current !== snapshot.element ||
+            videoId() !== snapshot.id) return;
+        const initialTime = current.currentTime;
+        try {
+            const result = current.play();
+            if (result && result.catch) result.catch(function () {});
+        } catch (_) {}
+        checkProgress(snapshot, current, initialTime);
+    }, 1000);
+});
+
+restoreAfterReload();
+"""
+(ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
+
+print("TTCC 1.15.0-ttcc.15-resume-test patch applied successfully")
+
