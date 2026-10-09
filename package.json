@@ -1,7 +1,7 @@
 {
   "name": "ttcc",
   "appName": "TizenTube HA Search TEST",
-  "version": "1.15.0-ttcc.13-focus-nav",
+  "version": "1.15.0-ttcc.14-focus-guard",
   "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",

@@ -18,6 +18,7 @@ Changes:
 - TEST: Chapter markers and the selected chapter name appear on the playback bar; one fallback metadata request per video.
 - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
 - Chapter title tracks the preview clock while seeking before the position is confirmed.
+- Screen Off is first in native engagement actions; empty native action rows remain untouched.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube
