@@ -65,7 +65,7 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.14-focus-guard",
+            "version": "1.15.0-ttcc.15-resume-test",
             "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
@@ -110,6 +110,7 @@ jobs:
           - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
           - Chapter title tracks the preview clock while seeking before the position is confirmed.
           - Screen Off is first in native engagement actions; empty native action rows remain untouched.
+          - TEST: pause video when the app is hidden; retry on return and refresh a stalled player once.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -133,6 +134,7 @@ jobs:
           grep -q "ttcc-chapters" dist/userScript.js
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
+          grep -q "playback stalled after resume" dist/userScript.js
           grep -q '"main": "dist/userScript.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
 
@@ -154,7 +156,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.14-focus-guard"
+            git commit -m "build: TTCC 1.15.0-ttcc.15-resume-test"
             git push
           fi
 
@@ -175,7 +177,7 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.14-focus-guard"'; then
+            if echo "$body" | grep -q '"version": "1.15.0-ttcc.15-resume-test"'; then
               echo "jsDelivr is fresh."
               exit 0
             fi
@@ -184,3 +186,4 @@ jobs:
           done
           echo "jsDelivr still serves stale metadata."
           exit 1
+
