@@ -20,6 +20,7 @@ Changes:
 - Chapter title tracks the preview clock while seeking before the position is confirmed.
 - Screen Off is first in native engagement actions; empty native action rows remain untouched.
 - TEST: pause video when the app is hidden; retry on return and refresh a stalled player once.
+- TEST: wait for YouTube command handler before restoring playback; /ttcc/status shows video state.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube
