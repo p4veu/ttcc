@@ -33,13 +33,14 @@ replace_once('service/service.js',
              'let haAutoScreenOffArmed = null;',
              'let haAutoScreenOffArmed = null;\nlet haChapterCount = 0;')
 replace_once('service/service.js',
-             'autoScreenOffArmed: haAutoScreenOffArmed,\n        pending:',
-             'autoScreenOffArmed: haAutoScreenOffArmed,\n        chapterCount: haChapterCount,\n        pending:')
+             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        pending:',
+             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        chapterCount: haChapterCount,\n        pending:')
 replace_once('service/service.js',
              "haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;",
              "haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;\n    haChapterCount = Math.max(0, Math.min(200, Number(req.query.chapters) || 0));")
 replace_once('mods/features/haSearch.js',
-             "'&armed=' + (autoScreenOffArmed ? '1' : '0');",
-             "'&armed=' + (autoScreenOffArmed ? '1' : '0') +\n                  '&chapters=' + (window.ttccChapters ? window.ttccChapters().count : 0);")
+             "'&ve=' + (video.error ? video.error.code : '0') : '');",
+             "'&ve=' + (video.error ? video.error.code : '0') : '') +\n                  '&chapters=' + (window.ttccChapters ? window.ttccChapters().count : 0);")
 
 print('TTCC chapter patch applied')
+
