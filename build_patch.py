@@ -297,18 +297,20 @@ let haFocused = null;
 let haVisibilityState = null;
 let haScreenOff = null;
 let haAutoScreenOffArmed = null;
+let haVideo = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.15-resume-test',
+        version: '1.15.0-ttcc.16-resume-ready',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
         visibilityState: haVisibilityState,
         screenOff: haScreenOff,
         autoScreenOffArmed: haAutoScreenOffArmed,
+        video: haVideo,
         pending: !!haPendingSearch
     });
 });
@@ -360,6 +362,12 @@ app.get('/ttcc/next', (req, res) => {
         ? req.query.visibility.slice(0, 32) : null;
     haScreenOff = req.query.black === '1' ? true : req.query.black === '0' ? false : null;
     haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;
+    haVideo = {
+        paused: req.query.vp === '1' ? true : req.query.vp === '0' ? false : null,
+        readyState: /^[0-4]$/.test(req.query.vr || '') ? Number(req.query.vr) : null,
+        time: /^[0-9]+(?:[.][0-9]+)?$/.test(req.query.vt || '') ? Number(req.query.vt) : null,
+        error: /^[0-4]$/.test(req.query.ve || '') ? Number(req.query.ve) : null
+    };
     return res.json(haPendingSearch
         ? { pending: true, command: haPendingSearch }
         : { pending: false });
@@ -458,10 +466,15 @@ function pollHaSearch() {
     const focus = typeof document.hasFocus === 'function'
         ? (document.hasFocus() ? '1' : '0') : 'unknown';
     const visibility = encodeURIComponent(document.visibilityState || 'unknown');
+    const video = document.querySelector('video');
     const flags = '&hidden=' + (document.hidden ? '1' : '0') +
                   '&focus=' + focus + '&visibility=' + visibility +
                   '&black=' + (document.documentElement.getAttribute('data-ttcc-screen-off') === '1' ? '1' : '0') +
-                  '&armed=' + (autoScreenOffArmed ? '1' : '0');
+                  '&armed=' + (autoScreenOffArmed ? '1' : '0') +
+                  (video ? '&vp=' + (video.paused ? '1' : '0') +
+                    '&vr=' + video.readyState +
+                    '&vt=' + (Number.isFinite(video.currentTime) ? video.currentTime.toFixed(1) : '') +
+                    '&ve=' + (video.error ? video.error.code : '0') : '');
     fetch(HA_BRIDGE + '/next?t=' + Date.now() + flags, { cache: 'no-store' })
         .then(function (response) {
             if (!response.ok) throw new Error('HA bridge status: ' + response.status);
@@ -564,6 +577,17 @@ function clearRecovery() {
     recoveryTimer = null;
 }
 
+function youtubeReady() {
+    if (!window._yttv) return false;
+    for (const key in window._yttv) {
+        const entry = window._yttv[key];
+        if (entry && entry.instance && typeof entry.instance.resolveCommand === 'function') {
+            return true;
+        }
+    }
+    return false;
+}
+
 function restoreAfterReload() {
     let snapshot = null;
     try {
@@ -571,22 +595,29 @@ function restoreAfterReload() {
         sessionStorage.removeItem(RECOVERY_KEY);
     } catch (_) {}
     if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id) ||
-        Date.now() - snapshot.at > 30000) return;
+        Date.now() - snapshot.at > 90000) return;
 
     let tries = 0;
     const wait = setInterval(function () {
-        if (++tries > 30) return clearInterval(wait);
-        if (!window._yttv || !video()) return;
+        if (++tries > 80) return clearInterval(wait);
+        if (!youtubeReady() || !video()) return;
         clearInterval(wait);
-        // The browser can restore the video itself. Navigate only if it did not.
+        // Allow YouTube's player and metadata to finish loading before trying
+        // to restore the stream. Merely finding _yttv and a video is too early.
         setTimeout(function () {
-            if (videoId() === snapshot.id) return;
-            const watchEndpoint = { videoId: snapshot.id };
-            if (Number.isFinite(snapshot.time) && snapshot.time > 0) {
-                watchEndpoint.startTimeSeconds = Math.floor(snapshot.time);
-            }
-            resolveCommand({ watchEndpoint: watchEndpoint });
-        }, 2000);
+            const current = video();
+            const initialTime = current ? current.currentTime : 0;
+            setTimeout(function () {
+                if (document.hidden || !youtubeReady()) return;
+                if (videoId() === snapshot.id && video() === current &&
+                    current.currentTime > initialTime + 0.5) return;
+                const watchEndpoint = { videoId: snapshot.id };
+                if (Number.isFinite(snapshot.time) && snapshot.time > 0) {
+                    watchEndpoint.startTimeSeconds = Math.floor(snapshot.time);
+                }
+                resolveCommand({ watchEndpoint: watchEndpoint });
+            }, 3000);
+        }, 4000);
     }, 300);
 }
 
@@ -658,5 +689,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.15-resume-test patch applied successfully")
+print("TTCC 1.15.0-ttcc.16-resume-ready patch applied successfully")
 
