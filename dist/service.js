@@ -50405,7 +50405,7 @@ var haChapterCount = 0;
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.0-ttcc.14-focus-guard',
+    version: '1.15.0-ttcc.15-resume-test',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
     hidden: haHidden,
     focused: haFocused,
