@@ -298,12 +298,13 @@ let haVisibilityState = null;
 let haScreenOff = null;
 let haAutoScreenOffArmed = null;
 let haVideo = null;
+let haResume = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.16-resume-ready',
+        version: '1.15.0-ttcc.17-resume-paused',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -311,6 +312,7 @@ app.get('/ttcc/status', (req, res) => {
         screenOff: haScreenOff,
         autoScreenOffArmed: haAutoScreenOffArmed,
         video: haVideo,
+        resume: haResume,
         pending: !!haPendingSearch
     });
 });
@@ -367,6 +369,11 @@ app.get('/ttcc/next', (req, res) => {
         readyState: /^[0-4]$/.test(req.query.vr || '') ? Number(req.query.vr) : null,
         time: /^[0-9]+(?:[.][0-9]+)?$/.test(req.query.vt || '') ? Number(req.query.vt) : null,
         error: /^[0-4]$/.test(req.query.ve || '') ? Number(req.query.ve) : null
+    };
+    haResume = {
+        stage: typeof req.query.rs === 'string' ? req.query.rs.slice(0, 32) : null,
+        events: /^\d+$/.test(req.query.re || '') ? Number(req.query.re) : null,
+        videoId: /^[\w-]{11}$/.test(req.query.ri || '') ? req.query.ri : null
     };
     return res.json(haPendingSearch
         ? { pending: true, command: haPendingSearch }
@@ -471,6 +478,10 @@ function pollHaSearch() {
                   '&focus=' + focus + '&visibility=' + visibility +
                   '&black=' + (document.documentElement.getAttribute('data-ttcc-screen-off') === '1' ? '1' : '0') +
                   '&armed=' + (autoScreenOffArmed ? '1' : '0') +
+                  (window.ttccResumeState ?
+                    '&rs=' + encodeURIComponent(window.ttccResumeState.stage || '') +
+                    '&re=' + (window.ttccResumeState.events || 0) +
+                    '&ri=' + encodeURIComponent(window.ttccResumeState.videoId || '') : '') +
                   (video ? '&vp=' + (video.paused ? '1' : '0') +
                     '&vr=' + video.readyState +
                     '&vt=' + (Number.isFinite(video.currentTime) ? video.currentTime.toFixed(1) : '') +
@@ -556,8 +567,10 @@ import resolveCommand from '../resolveCommand.js';
 
 const RECOVERY_KEY = '__ttcc_resume_once';
 let playbackBeforeHide = null;
+let recentPlayback = null;
 let recoveryTimer = null;
 let recoveryAttempted = false;
+const resumeState = window.ttccResumeState = { stage: 'loaded', events: 0, videoId: null };
 
 function video() {
     return document.querySelector('video');
@@ -566,11 +579,29 @@ function video() {
 function videoId() {
     try {
         const player = document.querySelector('.html5-video-player');
-        return player && player.getVideoData && player.getVideoData().video_id || null;
-    } catch (_) {
-        return null;
-    }
+        const id = player && player.getVideoData && player.getVideoData().video_id;
+        if (/^[\w-]{11}$/.test(id || '')) return id;
+    } catch (_) {}
+    // The TV player usually does not have the desktop .html5-video-player
+    // element. Read the current watch route before the chapter module's cache.
+    const match = location.hash.match(/[?&]v=([\w-]{11})(?:&|$)/);
+    if (match) return match[1];
+    try {
+        const id = window.ttccChapters && window.ttccChapters().videoId;
+        if (/^[\w-]{11}$/.test(id || '')) return id;
+    } catch (_) {}
+    return null;
 }
+
+// Tizen can pause the HTML5 video before visibilitychange is delivered.
+// Remember a recently advancing video so we can still restore it on return.
+document.addEventListener('timeupdate', function (event) {
+    const current = event.target;
+    if (current !== video() || current.paused || current.ended) return;
+    const id = videoId();
+    if (id) recentPlayback = { element: current, id: id,
+        time: current.currentTime, at: Date.now() };
+}, true);
 
 function clearRecovery() {
     if (recoveryTimer) clearTimeout(recoveryTimer);
@@ -596,6 +627,8 @@ function restoreAfterReload() {
     } catch (_) {}
     if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id) ||
         Date.now() - snapshot.at > 90000) return;
+    resumeState.stage = 'restore-wait';
+    resumeState.videoId = snapshot.id;
 
     let tries = 0;
     const wait = setInterval(function () {
@@ -609,8 +642,12 @@ function restoreAfterReload() {
             const initialTime = current ? current.currentTime : 0;
             setTimeout(function () {
                 if (document.hidden || !youtubeReady()) return;
-                if (videoId() === snapshot.id && video() === current &&
-                    current.currentTime > initialTime + 0.5) return;
+        if (videoId() === snapshot.id && video() === current &&
+                    current.currentTime > initialTime + 0.5) {
+                    resumeState.stage = 'restored-playing';
+                    return;
+                }
+                resumeState.stage = 'restore-navigate';
                 const watchEndpoint = { videoId: snapshot.id };
                 if (Number.isFinite(snapshot.time) && snapshot.time > 0) {
                     watchEndpoint.startTimeSeconds = Math.floor(snapshot.time);
@@ -629,6 +666,7 @@ function reloadStalledPlayer(snapshot) {
             JSON.stringify({ id: snapshot.id, time: snapshot.time, at: Date.now() }));
     } catch (_) {}
     console.warn('TTCC: playback stalled after resume; refreshing YouTube player');
+    resumeState.stage = 'reload-stalled';
     window.location.reload();
 }
 
@@ -638,7 +676,10 @@ function checkProgress(snapshot, originalVideo, initialTime) {
         recoveryTimer = null;
         if (document.hidden || video() !== originalVideo ||
             videoId() !== snapshot.id) return;
-        if (originalVideo.currentTime > initialTime + 0.5) return;
+        if (originalVideo.currentTime > initialTime + 0.5) {
+            resumeState.stage = 'playing';
+            return;
+        }
         // One retry allows the network and media decoder to settle after resume.
         try {
             const result = originalVideo.play();
@@ -656,26 +697,35 @@ function checkProgress(snapshot, originalVideo, initialTime) {
 }
 
 document.addEventListener('visibilitychange', function () {
+    resumeState.events++;
     clearRecovery();
     if (document.hidden) {
         const current = video();
-        playbackBeforeHide = current && !current.paused && !current.ended
-            ? { element: current, id: videoId(), time: current.currentTime } : null;
-        if (playbackBeforeHide) {
+        const id = videoId();
+        const wasPlaying = current && !current.paused && !current.ended;
+        playbackBeforeHide = wasPlaying && id
+            ? { element: current, id: id, time: current.currentTime }
+            : current && recentPlayback && recentPlayback.element === current &&
+                recentPlayback.id === id && Date.now() - recentPlayback.at < 5000
+                ? { element: current, id: id, time: current.currentTime } : null;
+        if (wasPlaying) {
             // Stop the decoder before Tizen suspends this app.
             try { current.pause(); } catch (_) {}
         }
+        resumeState.stage = playbackBeforeHide ? 'hidden-saved' : 'hidden-no-snapshot';
+        resumeState.videoId = id;
         return;
     }
 
     const snapshot = playbackBeforeHide;
     playbackBeforeHide = null;
+    resumeState.stage = snapshot ? 'visible-saved' : 'visible-no-snapshot';
     if (!snapshot || !snapshot.id || recoveryAttempted) return;
     recoveryTimer = setTimeout(function () {
         recoveryTimer = null;
         const current = video();
-        if (document.hidden || current !== snapshot.element ||
-            videoId() !== snapshot.id) return;
+        if (document.hidden || !current || videoId() !== snapshot.id) return;
+        resumeState.stage = 'resume-play';
         const initialTime = current.currentTime;
         try {
             const result = current.play();
@@ -689,5 +739,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.16-resume-ready patch applied successfully")
+print("TTCC 1.15.0-ttcc.17-resume-paused patch applied successfully")
 
