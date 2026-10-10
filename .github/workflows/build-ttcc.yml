@@ -59,6 +59,7 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
+          cp upstream/dist/userScript.js dist/userScript.v17.js
           cp upstream/dist/service.js dist/service.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
@@ -69,7 +70,7 @@ jobs:
             "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.js",
+            "main": "dist/userScript.v17.js",
             "author": "Reis Can; TTCC patch",
             "serviceFile": "dist/service.js",
             "keys": [
@@ -121,6 +122,7 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
+          test -s dist/userScript.v17.js
           test -s dist/service.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
@@ -136,7 +138,8 @@ jobs:
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q "playback stalled after resume" dist/userScript.js
-          grep -q '"main": "dist/userScript.js"' package.json
+          grep -q "hidden-no-snapshot" dist/userScript.v17.js
+          grep -q '"main": "dist/userScript.v17.js"' package.json
           grep -q '"serviceFile": "dist/service.js"' package.json
 
       - name: Upload test module
@@ -164,7 +167,7 @@ jobs:
       - name: Purge jsDelivr cache
         if: github.ref == 'refs/heads/main'
         run: |
-          for path in package.json dist/userScript.js dist/service.js; do
+          for path in package.json dist/userScript.v17.js dist/service.js; do
             for ref in "" "@main" "@latest"; do
               echo "Purging ${path} ${ref}"
               curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
@@ -178,7 +181,8 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            if echo "$body" | grep -q '"version": "1.15.0-ttcc.17-resume-paused"'; then
+            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v17.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v17.js"' && [[ "$script" == *hidden-no-snapshot* ]]; then
               echo "jsDelivr is fresh."
               exit 0
             fi
