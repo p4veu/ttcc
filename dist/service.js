@@ -50401,12 +50401,13 @@ var haScreenOff = null;
 var haAutoScreenOffArmed = null;
 var haChapterCount = 0;
 var haVideo = null;
+var haResume = null;
 
 // Minimal read-only health check: usable from any phone on the LAN.
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.0-ttcc.16-resume-ready',
+    version: '1.15.0-ttcc.17-resume-paused',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
     hidden: haHidden,
     focused: haFocused,
@@ -50414,6 +50415,7 @@ app.get('/ttcc/status', function (req, res) {
     screenOff: haScreenOff,
     autoScreenOffArmed: haAutoScreenOffArmed,
     video: haVideo,
+    resume: haResume,
     chapterCount: haChapterCount,
     pending: !!haPendingSearch
   });
@@ -50508,6 +50510,11 @@ app.get('/ttcc/next', function (req, res) {
     readyState: /^[0-4]$/.test(req.query.vr || '') ? Number(req.query.vr) : null,
     time: /^[0-9]+(?:[.][0-9]+)?$/.test(req.query.vt || '') ? Number(req.query.vt) : null,
     error: /^[0-4]$/.test(req.query.ve || '') ? Number(req.query.ve) : null
+  };
+  haResume = {
+    stage: typeof req.query.rs === 'string' ? req.query.rs.slice(0, 32) : null,
+    events: /^\d+$/.test(req.query.re || '') ? Number(req.query.re) : null,
+    videoId: /^[\w-]{11}$/.test(req.query.ri || '') ? req.query.ri : null
   };
   return res.json(haPendingSearch ? {
     pending: true,
