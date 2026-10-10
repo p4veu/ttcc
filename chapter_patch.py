@@ -33,8 +33,8 @@ replace_once('service/service.js',
              'let haAutoScreenOffArmed = null;',
              'let haAutoScreenOffArmed = null;\nlet haChapterCount = 0;')
 replace_once('service/service.js',
-             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        pending:',
-             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        chapterCount: haChapterCount,\n        pending:')
+             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        resume: haResume,\n        pending:',
+             'autoScreenOffArmed: haAutoScreenOffArmed,\n        video: haVideo,\n        resume: haResume,\n        chapterCount: haChapterCount,\n        pending:')
 replace_once('service/service.js',
              "haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;",
              "haAutoScreenOffArmed = req.query.armed === '1' ? true : req.query.armed === '0' ? false : null;\n    haChapterCount = Math.max(0, Math.min(200, Number(req.query.chapters) || 0));")
