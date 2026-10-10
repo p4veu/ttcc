@@ -5,7 +5,7 @@
   "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-  "main": "dist/userScript.js",
+  "main": "dist/userScript.v17.js",
   "author": "Reis Can; TTCC patch",
   "serviceFile": "dist/service.js",
   "keys": [
