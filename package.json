@@ -1,13 +1,13 @@
 {
   "name": "ttcc",
   "appName": "TizenTube HA Search TEST",
-  "version": "1.15.0-ttcc.17-resume-paused",
+  "version": "1.15.0-ttcc.18-standby-reload",
   "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-  "main": "dist/userScript.v17.js",
+  "main": "dist/userScript.v18.js",
   "author": "Reis Can; TTCC patch",
-  "serviceFile": "dist/service.js",
+  "serviceFile": "dist/service.v18.js",
   "keys": [
     "MediaPlayPause",
     "MediaPlay",
