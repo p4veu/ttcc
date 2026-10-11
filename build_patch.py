@@ -304,7 +304,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.17-resume-paused',
+        version: '1.15.0-ttcc.18-standby-reload',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -568,6 +568,7 @@ import resolveCommand from '../resolveCommand.js';
 const RECOVERY_KEY = '__ttcc_resume_once';
 let playbackBeforeHide = null;
 let recentPlayback = null;
+let hiddenAt = null;
 let recoveryTimer = null;
 let recoveryAttempted = false;
 const resumeState = window.ttccResumeState = { stage: 'loaded', events: 0, videoId: null };
@@ -700,6 +701,7 @@ document.addEventListener('visibilitychange', function () {
     resumeState.events++;
     clearRecovery();
     if (document.hidden) {
+        hiddenAt = Date.now();
         const current = video();
         const id = videoId();
         const wasPlaying = current && !current.paused && !current.ended;
@@ -717,10 +719,25 @@ document.addEventListener('visibilitychange', function () {
         return;
     }
 
+    const hiddenDuration = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+    hiddenAt = null;
     const snapshot = playbackBeforeHide;
     playbackBeforeHide = null;
     resumeState.stage = snapshot ? 'visible-saved' : 'visible-no-snapshot';
     if (!snapshot || !snapshot.id || recoveryAttempted) return;
+    // A TV coming back from standby can briefly advance the old video and
+    // then leave it paused. That fools the short progress check. A saved
+    // playing video after a long suspension needs a fresh YouTube player.
+    if (hiddenDuration >= 30000) {
+        resumeState.stage = 'standby-reload-wait';
+        recoveryTimer = setTimeout(function () {
+            recoveryTimer = null;
+            if (!document.hidden && videoId() === snapshot.id) {
+                reloadStalledPlayer(snapshot);
+            }
+        }, 1500);
+        return;
+    }
     recoveryTimer = setTimeout(function () {
         recoveryTimer = null;
         const current = video();
@@ -739,5 +756,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.17-resume-paused patch applied successfully")
+print("TTCC 1.15.0-ttcc.18-standby-reload patch applied successfully")
 
