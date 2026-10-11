@@ -59,20 +59,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v17.js
+          cp upstream/dist/userScript.js dist/userScript.v18.js
           cp upstream/dist/service.js dist/service.js
+          cp upstream/dist/service.js dist/service.v18.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
             "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.17-resume-paused",
+            "version": "1.15.0-ttcc.18-standby-reload",
             "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v17.js",
+            "main": "dist/userScript.v18.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.js",
+            "serviceFile": "dist/service.v18.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -113,6 +114,7 @@ jobs:
           - Screen Off is first in native engagement actions; empty native action rows remain untouched.
           - TEST: pause video when the app is hidden; retry on return and refresh a stalled player once.
           - TEST: resume paused videos even when Tizen paused them before hiding; use TV watch ID fallback and report recovery stage in /ttcc/status.
+          - TEST: refresh the player after a long TV standby, restoring the video that was playing before suspension.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
           Upstream: https://github.com/reisxd/TizenTube
@@ -122,8 +124,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v17.js
+          test -s dist/userScript.v18.js
           test -s dist/service.js
+          test -s dist/service.v18.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -138,9 +141,9 @@ jobs:
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q "playback stalled after resume" dist/userScript.js
-          grep -q "hidden-no-snapshot" dist/userScript.v17.js
-          grep -q '"main": "dist/userScript.v17.js"' package.json
-          grep -q '"serviceFile": "dist/service.js"' package.json
+          grep -q "standby-reload-wait" dist/userScript.v18.js
+          grep -q '"main": "dist/userScript.v18.js"' package.json
+          grep -q '"serviceFile": "dist/service.v18.js"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
@@ -160,14 +163,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.17-resume-paused"
+            git commit -m "build: TTCC 1.15.0-ttcc.18-standby-reload"
             git push
           fi
 
       - name: Purge jsDelivr cache
         if: github.ref == 'refs/heads/main'
         run: |
-          for path in package.json dist/userScript.v17.js dist/service.js; do
+          for path in package.json dist/userScript.v18.js dist/service.v18.js; do
             for ref in "" "@main" "@latest"; do
               echo "Purging ${path} ${ref}"
               curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
@@ -181,8 +184,9 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v17.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v17.js"' && [[ "$script" == *hidden-no-snapshot* ]]; then
+            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v18.js" || true)"
+            service="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/service.v18.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v18.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v18.js"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$service" == *1.15.0-ttcc.18-standby-reload* ]]; then
               echo "jsDelivr is fresh."
               exit 0
             fi
