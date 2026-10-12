@@ -57,15 +57,19 @@ screen_wrapper = """        if (engagementActionButton) {
                     const res = origScreenOffActionButton.apply(this, arguments);
                     if (!Array.isArray(res)) return res;
 
-                    // A row containing only injected actions has no native
-                    // focus target. Leanback can hide its controls on RIGHT
-                    // when it tries to move into that synthetic row.
-                    const hasNativeAction = res.some(item => item &&
+                    // Leanback returns empty placeholder items while its
+                    // control row is loading. Only attach our button after a
+                    // real native action with a renderer is present. A speed
+                    // button alone would create a focusable synthetic row.
+                    const hasNativeAction = res.some(item => item && item.type &&
+                        item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED' &&
+                        item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN' &&
+                        item.button && item.button.buttonRenderer);
+                    if (!hasNativeAction) return res.filter(item => item &&
                         item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED' &&
                         item.type !== 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN');
-                    if (!hasNativeAction) return res;
 
-                    if (!res.find(item => item.type === 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN')) {
+                    if (!res.find(item => item && item.type === 'TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN')) {
                         res.unshift(screenOffCommand);
                     }
 
@@ -304,7 +308,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.18-standby-reload',
+        version: '1.15.0-ttcc.19-controls-row',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -756,5 +760,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.18-standby-reload patch applied successfully")
+print("TTCC 1.15.0-ttcc.19-controls-row patch applied successfully")
 
