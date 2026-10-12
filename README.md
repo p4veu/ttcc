@@ -22,6 +22,7 @@ Changes:
 - TEST: pause video when the app is hidden; retry on return and refresh a stalled player once.
 - TEST: resume paused videos even when Tizen paused them before hiding; use TV watch ID fallback and report recovery stage in /ttcc/status.
 - TEST: refresh the player after a long TV standby, restoring the video that was playing before suspension.
+- TEST: add Screen Off only after YouTube has a native rendered action; keep loading rows free of synthetic controls.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
 Upstream: https://github.com/reisxd/TizenTube
