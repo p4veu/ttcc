@@ -59,21 +59,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v19.js
+          cp upstream/dist/userScript.js dist/userScript.v20-autorecover.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v19.js
+          cp upstream/dist/service.js dist/service.v20-autorecover.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube HA Search TEST",
-            "version": "1.15.0-ttcc.19-controls-row",
+            "appName": "TizenTube AutoRecover",
+            "version": "1.15.0-ttcc.20-autorecover",
             "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v19.js",
+            "main": "dist/userScript.v20-autorecover.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v19.js",
+            "serviceFile": "dist/service.v20-autorecover.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -112,8 +112,8 @@ jobs:
           - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
           - Chapter title tracks the preview clock while seeking before the position is confirmed.
           - Screen Off is first in native engagement actions; empty native action rows remain untouched.
-          - TEST: pause video when the app is hidden; retry on return and refresh a stalled player once.
-          - TEST: resume paused videos even when Tizen paused them before hiding; use TV watch ID fallback and report recovery stage in /ttcc/status.
+          - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
+          - AutoRecover: preserve the video and its position after the TV suspends playback, with extra focus and pause-event detection.
           - TEST: refresh the player after a long TV standby, restoring the video that was playing before suspension.
           - TEST: add Screen Off only after YouTube has a native rendered action; keep loading rows free of synthetic controls.
           - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
@@ -125,9 +125,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v19.js
+          test -s dist/userScript.v20-autorecover.js
           test -s dist/service.js
-          test -s dist/service.v19.js
+          test -s dist/service.v20-autorecover.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -141,10 +141,14 @@ jobs:
           grep -q "ttcc-chapters" dist/userScript.js
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
-          grep -q "playback stalled after resume" dist/userScript.js
-          grep -q "standby-reload-wait" dist/userScript.v19.js
-          grep -q '"main": "dist/userScript.v19.js"' package.json
-          grep -q '"serviceFile": "dist/service.v19.js"' package.json
+          grep -q "playback stalled after app resume" dist/userScript.js
+          grep -q "standby-reload-wait" dist/userScript.v20-autorecover.js
+          grep -q "focus-paused-detected" dist/userScript.v20-autorecover.js
+          grep -q "watchdog-return-detected" dist/userScript.v20-autorecover.js
+          grep -q "pause-candidate" dist/userScript.v20-autorecover.js
+          grep -q '"main": "dist/userScript.v20-autorecover.js"' package.json
+          grep -q '"serviceFile": "dist/service.v20-autorecover.js"' package.json
+          grep -q '"version": "1.15.0-ttcc.20-autorecover"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
@@ -164,14 +168,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.19-controls-row"
+            git commit -m "build: TTCC 1.15.0-ttcc.20-autorecover"
             git push
           fi
 
       - name: Purge jsDelivr cache
         if: github.ref == 'refs/heads/main'
         run: |
-          for path in package.json dist/userScript.v19.js dist/service.v19.js; do
+          for path in package.json dist/userScript.v20-autorecover.js dist/service.v20-autorecover.js; do
             for ref in "" "@main" "@latest"; do
               echo "Purging ${path} ${ref}"
               curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
@@ -185,9 +189,9 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v19.js" || true)"
-            service="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/service.v19.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v19.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v19.js"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$service" == *1.15.0-ttcc.19-controls-row* ]]; then
+            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v20-autorecover.js" || true)"
+            service="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/service.v20-autorecover.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v20-autorecover.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v20-autorecover.js"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$service" == *1.15.0-ttcc.20-autorecover* ]]; then
               echo "jsDelivr is fresh."
               exit 0
             fi
