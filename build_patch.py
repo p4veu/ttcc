@@ -564,9 +564,8 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\nimport './features/resumePlayback.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
-resume_playback = r"""// On Tizen 5 the suspended video element can stop accepting new streams
-// after the user switches to another app. Keep the first recovery local to
-// the player; reload YouTube only when an attempted resume makes no progress.
+resume_playback = r"""// Tizen can leave the player alive but stop its media pipeline after an app switch.
+// Recover on lifecycle events, and use a watchdog when Samsung omits those events.
 import resolveCommand from '../resolveCommand.js';
 
 const RECOVERY_KEY = '__ttcc_resume_once';
@@ -575,6 +574,13 @@ let recentPlayback = null;
 let hiddenAt = null;
 let recoveryTimer = null;
 let recoveryAttempted = false;
+let lastResumeAt = 0;
+let lastWatchdogAt = Date.now();
+let lastProgressAt = 0;
+let lastObservedVideoId = null;
+let lastObservedTime = null;
+let lastConfirmedTime = null;
+let lastFocusState = typeof document.hasFocus === 'function' ? document.hasFocus() : null;
 const resumeState = window.ttccResumeState = { stage: 'loaded', events: 0, videoId: null };
 
 function video() {
@@ -587,8 +593,6 @@ function videoId() {
         const id = player && player.getVideoData && player.getVideoData().video_id;
         if (/^[\w-]{11}$/.test(id || '')) return id;
     } catch (_) {}
-    // The TV player usually does not have the desktop .html5-video-player
-    // element. Read the current watch route before the chapter module's cache.
     const match = location.hash.match(/[?&]v=([\w-]{11})(?:&|$)/);
     if (match) return match[1];
     try {
@@ -598,15 +602,63 @@ function videoId() {
     return null;
 }
 
-// Tizen can pause the HTML5 video before visibilitychange is delivered.
-// Remember a recently advancing video so we can still restore it on return.
-document.addEventListener('timeupdate', function (event) {
+function notePlaybackProgress(event) {
     const current = event.target;
     if (current !== video() || current.paused || current.ended) return;
     const id = videoId();
-    if (id) recentPlayback = { element: current, id: id,
-        time: current.currentTime, at: Date.now() };
-}, true);
+    if (!id || !Number.isFinite(current.currentTime)) return;
+
+    const now = Date.now();
+    const time = current.currentTime;
+    const previousId = lastObservedVideoId;
+    const previousTime = lastObservedTime;
+    const idChanged = previousId !== id;
+    const movedForward = previousTime === null || time > previousTime + 0.1;
+    const jumped = previousTime !== null && Math.abs(time - previousTime) > 2;
+
+    if (!idChanged && !movedForward && !jumped) return;
+
+    if (previousId !== null && idChanged) {
+        recoveryAttempted = false;
+    } else if (jumped) {
+        recoveryAttempted = false;
+        lastConfirmedTime = time;
+    } else if (idChanged || lastConfirmedTime === null) {
+        lastConfirmedTime = time;
+    } else if (time > lastConfirmedTime + 0.5) {
+        lastConfirmedTime = time;
+        recoveryAttempted = false;
+    }
+
+    lastObservedVideoId = id;
+    lastObservedTime = time;
+    lastProgressAt = now;
+    recentPlayback = { element: current, id: id, time: time, at: now };
+}
+
+function notePlaybackStart(event) {
+    const current = event.target;
+    if (current !== video() || current.ended) return;
+    const id = videoId();
+    if (!id || !Number.isFinite(current.currentTime)) return;
+
+    const now = Date.now();
+    if (lastObservedVideoId !== null && lastObservedVideoId !== id) {
+        recoveryAttempted = false;
+        lastConfirmedTime = current.currentTime;
+    }
+    if (lastObservedVideoId !== id) {
+        lastObservedVideoId = id;
+        lastObservedTime = current.currentTime;
+    }
+    if (lastConfirmedTime === null) lastConfirmedTime = current.currentTime;
+    lastProgressAt = now;
+    recentPlayback = { element: current, id: id, time: current.currentTime, at: now };
+}
+
+document.addEventListener('timeupdate', notePlaybackProgress, true);
+document.addEventListener('play', notePlaybackStart, true);
+document.addEventListener('playing', notePlaybackStart, true);
 
 function clearRecovery() {
     if (recoveryTimer) clearTimeout(recoveryTimer);
@@ -632,6 +684,10 @@ function restoreAfterReload() {
     } catch (_) {}
     if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id) ||
         Date.now() - snapshot.at > 90000) return;
+
+    // Do not loop on reload if the TV's media service has not recovered yet.
+    // Actual forward progress or selecting a different video re-arms recovery.
+    recoveryAttempted = true;
     resumeState.stage = 'restore-wait';
     resumeState.videoId = snapshot.id;
 
@@ -640,16 +696,15 @@ function restoreAfterReload() {
         if (++tries > 80) return clearInterval(wait);
         if (!youtubeReady() || !video()) return;
         clearInterval(wait);
-        // Allow YouTube's player and metadata to finish loading before trying
-        // to restore the stream. Merely finding _yttv and a video is too early.
         setTimeout(function () {
             const current = video();
             const initialTime = current ? current.currentTime : 0;
             setTimeout(function () {
                 if (document.hidden || !youtubeReady()) return;
-        if (videoId() === snapshot.id && video() === current &&
+                if (videoId() === snapshot.id && video() === current &&
                     current.currentTime > initialTime + 0.5) {
                     resumeState.stage = 'restored-playing';
+                    recoveryAttempted = false;
                     return;
                 }
                 resumeState.stage = 'restore-navigate';
@@ -666,6 +721,7 @@ function restoreAfterReload() {
 function reloadStalledPlayer(snapshot) {
     if (recoveryAttempted || document.hidden) return;
     recoveryAttempted = true;
+    clearRecovery();
     try {
         if (snapshot.id) sessionStorage.setItem(RECOVERY_KEY,
             JSON.stringify({ id: snapshot.id, time: snapshot.time, at: Date.now() }));
@@ -683,9 +739,10 @@ function checkProgress(snapshot, originalVideo, initialTime) {
             videoId() !== snapshot.id) return;
         if (originalVideo.currentTime > initialTime + 0.5) {
             resumeState.stage = 'playing';
+            recoveryAttempted = false;
             return;
         }
-        // One retry allows the network and media decoder to settle after resume.
+        // Retry play once, then refresh the YouTube player if the stream is still frozen.
         try {
             const result = originalVideo.play();
             if (result && result.catch) result.catch(function () {});
@@ -701,37 +758,56 @@ function checkProgress(snapshot, originalVideo, initialTime) {
     }, 5000);
 }
 
-document.addEventListener('visibilitychange', function () {
-    resumeState.events++;
-    clearRecovery();
+function rememberBeforeHide() {
+    const now = Date.now();
+    if (hiddenAt === null) hiddenAt = now;
+
+    const current = video();
+    const id = videoId();
+    const wasPlaying = current && !current.paused && !current.ended;
+    if (wasPlaying && id) {
+        playbackBeforeHide = { element: current, id: id, time: current.currentTime, at: now };
+    } else if (current && recentPlayback && recentPlayback.element === current &&
+        recentPlayback.id === id && now - recentPlayback.at < 5000) {
+        // Tizen sometimes pauses the media element before reporting that the app was hidden.
+        playbackBeforeHide = {
+            element: current, id: id, time: current.currentTime, at: recentPlayback.at
+        };
+    }
+
+    if (wasPlaying) {
+        try { current.pause(); } catch (_) {}
+    }
+    resumeState.stage = playbackBeforeHide ? 'hidden-saved' : 'hidden-no-snapshot';
+    resumeState.videoId = id;
+}
+
+function handleVisibilityChange() {
     if (document.hidden) {
-        hiddenAt = Date.now();
-        const current = video();
-        const id = videoId();
-        const wasPlaying = current && !current.paused && !current.ended;
-        playbackBeforeHide = wasPlaying && id
-            ? { element: current, id: id, time: current.currentTime }
-            : current && recentPlayback && recentPlayback.element === current &&
-                recentPlayback.id === id && Date.now() - recentPlayback.at < 5000
-                ? { element: current, id: id, time: current.currentTime } : null;
-        if (wasPlaying) {
-            // Stop the decoder before Tizen suspends this app.
-            try { current.pause(); } catch (_) {}
-        }
-        resumeState.stage = playbackBeforeHide ? 'hidden-saved' : 'hidden-no-snapshot';
-        resumeState.videoId = id;
+        resumeState.events++;
+        clearRecovery();
+        rememberBeforeHide();
         return;
     }
 
-    const hiddenDuration = hiddenAt === null ? 0 : Date.now() - hiddenAt;
-    hiddenAt = null;
+    // focus/pageshow can arrive after visibilitychange. Do not cancel a recovery
+    // already scheduled by the first event when the second event has no snapshot.
+    if (!playbackBeforeHide && hiddenAt === null) return;
+
+    resumeState.events++;
+    clearRecovery();
+    const now = Date.now();
+    const hiddenDuration = hiddenAt === null ? 0 : now - hiddenAt;
     const snapshot = playbackBeforeHide;
     playbackBeforeHide = null;
+    hiddenAt = null;
     resumeState.stage = snapshot ? 'visible-saved' : 'visible-no-snapshot';
-    if (!snapshot || !snapshot.id || recoveryAttempted) return;
-    // A TV coming back from standby can briefly advance the old video and
-    // then leave it paused. That fools the short progress check. A saved
-    // playing video after a long suspension needs a fresh YouTube player.
+    if (!snapshot || !snapshot.id) return;
+
+    lastResumeAt = now;
+    if (recoveryAttempted) return;
+
+    // A long standby can leave the old media element permanently detached from the stream.
     if (hiddenDuration >= 30000) {
         resumeState.stage = 'standby-reload-wait';
         recoveryTimer = setTimeout(function () {
@@ -742,6 +818,7 @@ document.addEventListener('visibilitychange', function () {
         }, 1500);
         return;
     }
+
     recoveryTimer = setTimeout(function () {
         recoveryTimer = null;
         const current = video();
@@ -754,7 +831,78 @@ document.addEventListener('visibilitychange', function () {
         } catch (_) {}
         checkProgress(snapshot, current, initialTime);
     }, 1000);
+}
+
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('blur', function () {
+    if (document.hidden) return;
+    clearRecovery();
+    rememberBeforeHide();
 });
+window.addEventListener('focus', function () {
+    setTimeout(handleVisibilityChange, 350);
+});
+window.addEventListener('pageshow', function () {
+    setTimeout(handleVisibilityChange, 350);
+});
+
+// Some Tizen quick-resume paths never emit visibilitychange. Poll focus as a
+// backup, then detect a suspended JS timer or a player that stopped advancing.
+setInterval(function () {
+    const now = Date.now();
+    const previousTick = lastWatchdogAt;
+    const gap = now - previousTick;
+    lastWatchdogAt = now;
+
+    const focused = typeof document.hasFocus === 'function' ? document.hasFocus() : null;
+    if (focused !== null && lastFocusState !== null && focused !== lastFocusState) {
+        lastFocusState = focused;
+        if (focused) {
+            setTimeout(handleVisibilityChange, 350);
+        } else {
+            clearRecovery();
+            rememberBeforeHide();
+        }
+    } else if (focused !== null && lastFocusState === null) {
+        lastFocusState = focused;
+    }
+
+    if (document.hidden) return;
+    const current = video();
+    const id = videoId();
+    if (!current || !id || current.ended) return;
+
+    if (lastObservedVideoId !== null && id !== lastObservedVideoId) {
+        recoveryAttempted = false;
+        lastObservedVideoId = id;
+        lastObservedTime = current.currentTime;
+        lastConfirmedTime = current.currentTime;
+        lastProgressAt = current.paused ? 0 : now;
+    }
+
+    // If timers were suspended, recent progress just before the gap is evidence
+    // that the app was backgrounded even when Samsung omitted lifecycle events.
+    if (gap >= 8000 && !recoveryAttempted && !playbackBeforeHide &&
+        hiddenAt === null && now - lastResumeAt >= 12000) {
+        const candidate = recentPlayback;
+        if (candidate && candidate.id === id && candidate.at >= previousTick - 5000) {
+            playbackBeforeHide = {
+                element: current, id: id, time: candidate.time, at: candidate.at
+            };
+            hiddenAt = previousTick;
+            resumeState.stage = 'watchdog-return-detected';
+            handleVisibilityChange();
+            return;
+        }
+    }
+
+    // If the page stayed visible but the HTML5 media clock is frozen, recover it
+    // without waiting for another app-switch event.
+    if (!current.paused && !recoveryTimer && lastProgressAt > 0 &&
+        lastObservedVideoId === id && now - lastProgressAt >= 12000) {
+        reloadStalledPlayer({ id: id, time: current.currentTime });
+    }
+}, 2500);
 
 restoreAfterReload();
 """
