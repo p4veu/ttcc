@@ -308,7 +308,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.19-controls-row',
+        version: '1.15.0-ttcc.20-autorecover',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -571,7 +571,10 @@ import resolveCommand from '../resolveCommand.js';
 const RECOVERY_KEY = '__ttcc_resume_once';
 let playbackBeforeHide = null;
 let recentPlayback = null;
+let backgroundPause = null;
 let hiddenAt = null;
+let lastPlaybackControlAt = 0;
+let intentionalPauseId = null;
 let recoveryTimer = null;
 let recoveryAttempted = false;
 let lastResumeAt = 0;
@@ -602,6 +605,44 @@ function videoId() {
     return null;
 }
 
+function markPlaybackControl(event) {
+    const now = Date.now();
+    if (event.type === 'keydown') {
+        const code = event.keyCode || event.which || 0;
+        const key = event.key || '';
+        const active = document.activeElement;
+        const label = active
+            ? String((active.getAttribute && (active.getAttribute('aria-label') || active.getAttribute('title'))) ||
+                active.className || '')
+            : '';
+        const focusedPlaybackButton = /play|pause|odtwórz|odtworz|wstrzymaj/i.test(label);
+        if (code === 10252 || code === 415 || code === 19 ||
+            key === 'MediaPlayPause' || key === 'MediaPlay' || key === 'MediaPause' ||
+            code === 32 || key === ' ' ||
+            ((code === 13 || key === 'Enter') && focusedPlaybackButton)) {
+            lastPlaybackControlAt = now;
+        }
+        return;
+    }
+    const target = event.target && event.target.closest
+        ? event.target.closest('video,button,[role="button"]') : null;
+    if (!target) return;
+    const label = [
+        target.getAttribute && target.getAttribute('aria-label'),
+        target.getAttribute && target.getAttribute('title'),
+        target.className,
+        target.textContent
+    ].filter(Boolean).join(' ');
+    if ((target.tagName && target.tagName.toLowerCase() === 'video') ||
+        /play|pause|odtwórz|odtworz|wstrzymaj/i.test(label)) {
+        lastPlaybackControlAt = now;
+    }
+}
+
+['keydown', 'click', 'pointerdown', 'touchstart'].forEach(function (type) {
+    window.addEventListener(type, markPlaybackControl, true);
+});
+
 function notePlaybackProgress(event) {
     const current = event.target;
     if (current !== video() || current.paused || current.ended) return;
@@ -620,6 +661,8 @@ function notePlaybackProgress(event) {
 
     if (previousId !== null && idChanged) {
         recoveryAttempted = false;
+        intentionalPauseId = null;
+        backgroundPause = null;
     } else if (jumped) {
         recoveryAttempted = false;
         lastConfirmedTime = time;
@@ -654,9 +697,37 @@ function notePlaybackStart(event) {
     if (lastConfirmedTime === null) lastConfirmedTime = current.currentTime;
     lastProgressAt = now;
     recentPlayback = { element: current, id: id, time: current.currentTime, at: now };
+    backgroundPause = null;
+    intentionalPauseId = null;
+}
+
+function notePlaybackPause(event) {
+    const current = event.target;
+    if (current !== video() || current.ended) return;
+    const id = videoId();
+    const now = Date.now();
+    if (!id || !recentPlayback || recentPlayback.id !== id ||
+        now - recentPlayback.at > 15000) return;
+    if (now - lastPlaybackControlAt <= 2500) {
+        intentionalPauseId = id;
+        backgroundPause = null;
+        return;
+    }
+    if (intentionalPauseId === id) return;
+    backgroundPause = {
+        element: current,
+        id: id,
+        time: Number.isFinite(current.currentTime) ? current.currentTime : recentPlayback.time,
+        at: now
+    };
+    resumeState.stage = 'pause-candidate';
+    resumeState.videoId = id;
 }
 
 document.addEventListener('timeupdate', notePlaybackProgress, true);
+document.addEventListener('play', notePlaybackStart, true);
+document.addEventListener('playing', notePlaybackStart, true);
+document.addEventListener('pause', notePlaybackPause, true);
 document.addEventListener('play', notePlaybackStart, true);
 document.addEventListener('playing', notePlaybackStart, true);
 
@@ -726,7 +797,7 @@ function reloadStalledPlayer(snapshot) {
         if (snapshot.id) sessionStorage.setItem(RECOVERY_KEY,
             JSON.stringify({ id: snapshot.id, time: snapshot.time, at: Date.now() }));
     } catch (_) {}
-    console.warn('TTCC: playback stalled after resume; refreshing YouTube player');
+    console.warn('TTCC AutoRecover: playback stalled after app resume; refreshing player');
     resumeState.stage = 'reload-stalled';
     window.location.reload();
 }
@@ -767,7 +838,7 @@ function rememberBeforeHide() {
     const wasPlaying = current && !current.paused && !current.ended;
     if (wasPlaying && id) {
         playbackBeforeHide = { element: current, id: id, time: current.currentTime, at: now };
-    } else if (current && recentPlayback && recentPlayback.element === current &&
+    } else if (current && intentionalPauseId !== id && recentPlayback && recentPlayback.element === current &&
         recentPlayback.id === id && now - recentPlayback.at < 5000) {
         // Tizen sometimes pauses the media element before reporting that the app was hidden.
         playbackBeforeHide = {
@@ -790,19 +861,40 @@ function handleVisibilityChange() {
         return;
     }
 
-    // focus/pageshow can arrive after visibilitychange. Do not cancel a recovery
-    // already scheduled by the first event when the second event has no snapshot.
-    if (!playbackBeforeHide && hiddenAt === null) return;
+    // focus/pageshow can arrive without visibilitychange or blur on some TVs.
+    // Infer a suspended playback only if it was recently advancing and there
+    // was no explicit user pause.
+    const now = Date.now();
+    if (!playbackBeforeHide && hiddenAt === null && !backgroundPause) {
+        const current = video();
+        const id = videoId();
+        if (current && id && current.paused && !current.ended &&
+            recentPlayback && recentPlayback.id === id &&
+            now - recentPlayback.at < 120000 && intentionalPauseId !== id &&
+            now - lastPlaybackControlAt > 2500) {
+            backgroundPause = {
+                element: current, id: id,
+                time: Number.isFinite(current.currentTime) ? current.currentTime : recentPlayback.time,
+                at: recentPlayback.at
+            };
+            hiddenAt = recentPlayback.at;
+            resumeState.stage = 'focus-paused-detected';
+        } else {
+            return;
+        }
+    }
 
     resumeState.events++;
     clearRecovery();
-    const now = Date.now();
-    const hiddenDuration = hiddenAt === null ? 0 : now - hiddenAt;
-    const snapshot = playbackBeforeHide;
+    const hiddenDuration = hiddenAt === null
+        ? (backgroundPause ? now - backgroundPause.at : 0)
+        : now - hiddenAt;
+    const snapshot = playbackBeforeHide || backgroundPause;
     playbackBeforeHide = null;
+    backgroundPause = null;
     hiddenAt = null;
     resumeState.stage = snapshot ? 'visible-saved' : 'visible-no-snapshot';
-    if (!snapshot || !snapshot.id) return;
+    if (!snapshot || !snapshot.id || intentionalPauseId === snapshot.id) return;
 
     lastResumeAt = now;
     if (recoveryAttempted) return;
@@ -867,7 +959,7 @@ setInterval(function () {
         lastFocusState = focused;
     }
 
-    if (document.hidden) return;
+    if (document.hidden || focused === false) return;
     const current = video();
     const id = videoId();
     if (!current || !id || current.ended) return;
@@ -880,12 +972,21 @@ setInterval(function () {
         lastProgressAt = current.paused ? 0 : now;
     }
 
+    // Resume a system-paused video once this page is active again, even when
+    // Tizen never fired visibilitychange. A detected user pause stays paused.
+    if (backgroundPause && backgroundPause.id === id && intentionalPauseId !== id &&
+        !recoveryAttempted && !recoveryTimer && now - backgroundPause.at >= 3000) {
+        handleVisibilityChange();
+        return;
+    }
+
     // If timers were suspended, recent progress just before the gap is evidence
     // that the app was backgrounded even when Samsung omitted lifecycle events.
-    if (gap >= 8000 && !recoveryAttempted && !playbackBeforeHide &&
-        hiddenAt === null && now - lastResumeAt >= 12000) {
+    if (gap >= 4000 && !recoveryAttempted && !playbackBeforeHide &&
+        hiddenAt === null && now - lastResumeAt >= 8000) {
         const candidate = recentPlayback;
-        if (candidate && candidate.id === id && candidate.at >= previousTick - 5000) {
+        if (candidate && candidate.id === id && candidate.at >= previousTick - 12000 &&
+            intentionalPauseId !== id) {
             playbackBeforeHide = {
                 element: current, id: id, time: candidate.time, at: candidate.at
             };
@@ -908,5 +1009,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.19-controls-row patch applied successfully")
+print("TTCC 1.15.0-ttcc.20-autorecover patch applied successfully")
 
