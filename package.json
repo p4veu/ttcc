@@ -2,7 +2,7 @@
   "name": "ttcc",
   "appName": "TizenTube AutoRecover",
   "version": "1.15.0-ttcc.20-autorecover",
-  "description": "TizenTube 1.15.0 with automatic playback recovery after app switching.",
+  "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
   "main": "dist/userScript.v20-autorecover.js",

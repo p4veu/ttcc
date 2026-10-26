@@ -1,6 +1,4 @@
-# TTCC — TizenTube AutoRecover
-
-Current test build: `1.15.0-ttcc.20-autorecover` (module name shown in TizenBrew: **TizenTube AutoRecover**).
+# TTCC
 
 Custom TizenBrew module built from the clean TizenTube 1.15.0 source
 (upstream commit 893b663d35efa558d8bdf9f54f0c4f9a31ab6a07).
@@ -23,7 +21,7 @@ Changes:
 - Screen Off is first in native engagement actions; empty native action rows remain untouched.
 - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
 - AutoRecover: preserve the video and its position after the TV suspends playback, with extra focus and pause-event detection.
-- AutoRecover: refresh a stuck player after a long standby and restore the same video near its last position.
+- TEST: refresh the player after a long TV standby, restoring the video that was playing before suspension.
 - TEST: add Screen Off only after YouTube has a native rendered action; keep loading rows free of synthetic controls.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
 
