@@ -1,13 +1,13 @@
 {
   "name": "ttcc",
-  "appName": "TizenTube HA Search TEST",
-  "version": "1.15.0-ttcc.19-controls-row",
-  "description": "TEST ONLY: HA bridge and chapter markers; queries YouTube once per video if needed.",
+  "appName": "TizenTube AutoRecover",
+  "version": "1.15.0-ttcc.20-autorecover",
+  "description": "TizenTube 1.15.0 with automatic playback recovery after app switching.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-  "main": "dist/userScript.v19.js",
+  "main": "dist/userScript.v20-autorecover.js",
   "author": "Reis Can; TTCC patch",
-  "serviceFile": "dist/service.v19.js",
+  "serviceFile": "dist/service.v20-autorecover.js",
   "keys": [
     "MediaPlayPause",
     "MediaPlay",
