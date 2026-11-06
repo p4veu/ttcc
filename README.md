@@ -9,7 +9,7 @@ Changes:
 - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
 - blackout uses an html pseudo-element so resuming playback cannot remove it during a YouTube UI rerender;
 - no global display:block restore, preventing Theme Configuration from appearing on wake;
-- DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
+- DIAL/casting launches the version-specific gh/p4veu/ttcc@ttcc-23-release module.
 - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
 - Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
 - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
