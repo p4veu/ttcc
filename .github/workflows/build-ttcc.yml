@@ -59,21 +59,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v21-startup-recover.js
+          cp upstream/dist/userScript.js dist/userScript.v22-home-playback.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v21-startup-recover.js
+          cp upstream/dist/service.js dist/service.v22-home-playback.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube AutoRecover .21",
-            "version": "1.15.0-ttcc.21-startup-recover",
+            "appName": "TizenTube AutoRecover .22",
+            "version": "1.15.0-ttcc.22-home-playback",
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v21-startup-recover.js",
+            "main": "dist/userScript.v22-home-playback.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v21-startup-recover.js",
+            "serviceFile": "dist/service.v22-home-playback.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -127,9 +127,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v21-startup-recover.js
+          test -s dist/userScript.v22-home-playback.js
           test -s dist/service.js
-          test -s dist/service.v21-startup-recover.js
+          test -s dist/service.v22-home-playback.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -144,15 +144,15 @@ jobs:
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q "playback stalled after app resume" dist/userScript.js
-          grep -q "standby-reload-wait" dist/userScript.v21-startup-recover.js
-          grep -q "focus-paused-detected" dist/userScript.v21-startup-recover.js
-          grep -q "watchdog-return-detected" dist/userScript.v21-startup-recover.js
-          grep -q "pause-candidate" dist/userScript.v21-startup-recover.js
-          grep -q "__ttcc_last_active_playback" dist/userScript.v21-startup-recover.js
-          grep -q "startup-stale-session" dist/userScript.v21-startup-recover.js
-          grep -q '"main": "dist/userScript.v21-startup-recover.js"' package.json
-          grep -q '"serviceFile": "dist/service.v21-startup-recover.js"' package.json
-          grep -q '"version": "1.15.0-ttcc.21-startup-recover"' package.json
+          grep -q "standby-reload-wait" dist/userScript.v22-home-playback.js
+          grep -q "focus-paused-detected" dist/userScript.v22-home-playback.js
+          grep -q "watchdog-return-detected" dist/userScript.v22-home-playback.js
+          grep -q "pause-candidate" dist/userScript.v22-home-playback.js
+          grep -q "__ttcc_last_active_playback" dist/userScript.v22-home-playback.js
+          grep -q "startup-stale-session" dist/userScript.v22-home-playback.js
+          grep -q '"main": "dist/userScript.v22-home-playback.js"' package.json
+          grep -q '"serviceFile": "dist/service.v22-home-playback.js"' package.json
+          grep -q '"version": "1.15.0-ttcc.22-home-playback"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
@@ -172,14 +172,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.0-ttcc.21-startup-recover"
+            git commit -m "build: TTCC 1.15.0-ttcc.22-home-playback"
             git push
           fi
 
       - name: Purge jsDelivr cache
         if: github.ref == 'refs/heads/main'
         run: |
-          for path in package.json dist/userScript.v21-startup-recover.js dist/service.v21-startup-recover.js; do
+          for path in package.json dist/userScript.v22-home-playback.js dist/service.v22-home-playback.js; do
             for ref in "" "@main" "@latest"; do
               echo "Purging ${path} ${ref}"
               curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
@@ -193,9 +193,9 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v21-startup-recover.js" || true)"
-            service="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/service.v21-startup-recover.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v21-startup-recover.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v21-startup-recover.js"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" == *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.21-startup-recover* ]]; then
+            script="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/userScript.v22-home-playback.js" || true)"
+            service="$(curl --fail --silent --show-error "https://cdn.jsdelivr.net/gh/p4veu/ttcc/dist/service.v22-home-playback.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v22-home-playback.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v22-home-playback.js"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" == *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.22-home-playback* ]]; then
               echo "jsDelivr is fresh."
               exit 0
             fi
