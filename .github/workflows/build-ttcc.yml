@@ -2,7 +2,7 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
+    branches: [main, ttcc-23-release, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
     paths:
       - build_patch.py
       - chapter_patch.py
@@ -102,7 +102,7 @@ jobs:
           - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
           - blackout uses an html pseudo-element so resuming playback cannot remove it during a YouTube UI rerender;
           - no global display:block restore, preventing Theme Configuration from appearing on wake;
-          - DIAL/casting launches gh/p4veu/ttcc rather than the upstream npm module.
+          - DIAL/casting launches the version-specific gh/p4veu/ttcc@ttcc-23-release module.
           - TEST: POST /ttcc/search on local port 8096 to show HA voice search results.
           - Visibility diagnostics: /ttcc/status reports hidden, focused and visibilityState from the TV page.
           - TEST: POST /ttcc/screen supports voice screen on/off via the same HA bridge.
@@ -165,7 +165,7 @@ jobs:
             LICENSE
 
       - name: Commit generated module
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ttcc-23-release'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -176,15 +176,35 @@ jobs:
           fi
 
       - name: Purge jsDelivr cache
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ttcc-23-release'
         run: |
           for path in package.json dist/userScript.v23-no-startup-autoplay.js dist/service.v23-no-startup-autoplay.js; do
-            for ref in "" "@main" "@latest"; do
+            for ref in "" "@main" "@latest" "@ttcc-23-release"; do
               echo "Purging ${path} ${ref}"
               curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
               echo
             done
           done
+
+      - name: Verify jsDelivr serves TTCC .23 release alias
+        if: github.ref == 'refs/heads/ttcc-23-release'
+        run: |
+          base="https://cdn.jsdelivr.net/gh/p4veu/ttcc@ttcc-23-release"
+          echo "Checking TizenBrew module URL: ${base}"
+          for i in $(seq 1 60); do
+            body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
+            echo "$body"
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v23-no-startup-autoplay.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v23-no-startup-autoplay.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.23-no-startup-autoplay"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *"p4veu/ttcc@ttcc-23-release"* ]]; then
+              echo "TTCC .23 release alias is verified."
+              exit 0
+            fi
+            echo "Release alias not ready; retry $i/60..."
+            sleep 5
+          done
+          echo "The release alias did not return the expected .23 module."
+          exit 1
 
       - name: Verify jsDelivr serves pinned release
         if: github.ref == 'refs/heads/main'
