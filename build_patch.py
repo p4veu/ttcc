@@ -609,7 +609,7 @@ function videoId() {
 }
 
 function saveStartupSnapshot(id, time, now) {
-    if (!/^[\\w-]{11}$/.test(id || '') || !Number.isFinite(time)) return;
+    if (!/^[\w-]{11}$/.test(id || '') || !Number.isFinite(time)) return;
     if (now - lastStartupSnapshotWrite < 5000) return;
     try {
         localStorage.setItem(STARTUP_KEY, JSON.stringify({ id: id, time: time, at: now }));
@@ -620,7 +620,7 @@ function saveStartupSnapshot(id, time, now) {
 function readStartupSnapshot() {
     try {
         const snapshot = JSON.parse(localStorage.getItem(STARTUP_KEY));
-        if (!snapshot || !/^[\\w-]{11}$/.test(snapshot.id || '') ||
+        if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id || '') ||
             !Number.isFinite(snapshot.time) || !Number.isFinite(snapshot.at) ||
             snapshot.at > Date.now() + 60000 || Date.now() - snapshot.at > STARTUP_MAX_AGE) {
             localStorage.removeItem(STARTUP_KEY);
