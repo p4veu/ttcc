@@ -21,6 +21,8 @@ Changes:
 - Screen Off is first in native engagement actions; empty native action rows remain untouched.
 - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
 - AutoRecover: preserve the video and its position after the TV suspends playback, with extra focus and pause-event detection.
+- AutoRecover .21: persist the last actively playing video/position; detect stale sessions after TV startup/standby even when Tizen emits no focus or visibility event; refresh once and restore the saved position.
+- A deliberate remote pause clears the startup snapshot and is not auto-resumed.
 - TEST: refresh the player after a long TV standby, restoring the video that was playing before suspension.
 - TEST: add Screen Off only after YouTube has a native rendered action; keep loading rows free of synthetic controls.
 - Previous confirmed-working version .5 is preserved on stable-fully-working-ttcc-1.15.0-ttcc.5 branch.
