@@ -175,16 +175,24 @@ jobs:
             git push
           fi
 
-      - name: Purge jsDelivr cache
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ttcc-23-release'
+      - name: Publish .23 semver tag for the unchanged TizenBrew module URL
+        if: github.ref == 'refs/heads/main'
         run: |
-          for path in package.json dist/userScript.v23-no-startup-autoplay.js dist/service.v23-no-startup-autoplay.js; do
-            for ref in "" "@main" "@latest" "@ttcc-23-release"; do
-              echo "Purging ${path} ${ref}"
-              curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc${ref}/${path}"
-              echo
-            done
-          done
+          version="$(node -p "require('./package.json').version")"
+          test "$version" = "1.15.0-ttcc.23-no-startup-autoplay"
+          git tag -f "$version" HEAD
+          git push origin "refs/tags/$version" --force
+
+      - name: Purge jsDelivr latest manifest cache
+        if: github.ref == 'refs/heads/main'
+        run: |
+          response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc@latest/package.json")"
+          echo "$response"
+          if echo "$response" | grep -q '"throttled": true'; then
+            echo "jsDelivr did not purge the latest manifest; it is still throttled."
+            exit 1
+          fi
+          echo "$response" | grep -q '"throttled": false'
 
       - name: Verify jsDelivr serves TTCC .23 release alias
         if: github.ref == 'refs/heads/ttcc-23-release'
