@@ -186,16 +186,14 @@ jobs:
           git tag -f "1.15.0" HEAD
           git push origin "refs/tags/1.15.0" --force
 
-      - name: Purge jsDelivr latest manifest cache
+      - name: Purge exact unchanged TizenBrew manifest URL
         if: github.ref == 'refs/heads/main'
         run: |
-          response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc@latest/package.json")"
+          # TizenBrew fetches this exact unversioned manifest URL. Purge this cache key,
+          # not only the @latest alias, before checking the same URL used by the TV.
+          response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc/package.json")"
           echo "$response"
-          if echo "$response" | grep -q '"throttled": true'; then
-            echo "::warning::jsDelivr purge is temporarily throttled; checking whether the .23 semver tag already updates the unchanged module URL."
-          else
-            echo "$response" | grep -q '"throttled": false'
-          fi
+          echo "$response" | grep -q '"throttled": false'
 
       - name: Verify jsDelivr serves TTCC .23 release alias
         if: github.ref == 'refs/heads/ttcc-23-release'
