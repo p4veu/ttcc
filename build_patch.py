@@ -308,7 +308,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.20-autorecover',
+        version: '1.15.0-ttcc.21-startup-recover',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -569,6 +569,9 @@ resume_playback = r"""// Tizen can leave the player alive but stop its media pip
 import resolveCommand from '../resolveCommand.js';
 
 const RECOVERY_KEY = '__ttcc_resume_once';
+const STARTUP_KEY = '__ttcc_last_active_playback';
+const STARTUP_MAX_AGE = 48 * 60 * 60 * 1000;
+let lastStartupSnapshotWrite = 0;
 let playbackBeforeHide = null;
 let recentPlayback = null;
 let backgroundPause = null;
@@ -603,6 +606,33 @@ function videoId() {
         if (/^[\w-]{11}$/.test(id || '')) return id;
     } catch (_) {}
     return null;
+}
+
+function saveStartupSnapshot(id, time, now) {
+    if (!/^[\w-]{11}$/.test(id || '') || !Number.isFinite(time)) return;
+    if (now - lastStartupSnapshotWrite < 5000) return;
+    try {
+        localStorage.setItem(STARTUP_KEY, JSON.stringify({ id: id, time: time, at: now }));
+        lastStartupSnapshotWrite = now;
+    } catch (_) {}
+}
+
+function readStartupSnapshot() {
+    try {
+        const snapshot = JSON.parse(localStorage.getItem(STARTUP_KEY));
+        if (!snapshot || !/^[\w-]{11}$/.test(snapshot.id || '') ||
+            !Number.isFinite(snapshot.time) || !Number.isFinite(snapshot.at) ||
+            snapshot.at > Date.now() + 60000 || Date.now() - snapshot.at > STARTUP_MAX_AGE) {
+            localStorage.removeItem(STARTUP_KEY);
+            return null;
+        }
+        return snapshot;
+    } catch (_) { return null; }
+}
+
+function clearStartupSnapshot() {
+    try { localStorage.removeItem(STARTUP_KEY); } catch (_) {}
+    lastStartupSnapshotWrite = 0;
 }
 
 function markPlaybackControl(event) {
@@ -677,6 +707,7 @@ function notePlaybackProgress(event) {
     lastObservedTime = time;
     lastProgressAt = now;
     recentPlayback = { element: current, id: id, time: time, at: now };
+    saveStartupSnapshot(id, time, now);
 }
 
 function notePlaybackStart(event) {
@@ -697,6 +728,7 @@ function notePlaybackStart(event) {
     if (lastConfirmedTime === null) lastConfirmedTime = current.currentTime;
     lastProgressAt = now;
     recentPlayback = { element: current, id: id, time: current.currentTime, at: now };
+    saveStartupSnapshot(id, current.currentTime, now);
     backgroundPause = null;
     intentionalPauseId = null;
 }
@@ -711,6 +743,7 @@ function notePlaybackPause(event) {
     if (now - lastPlaybackControlAt <= 2500) {
         intentionalPauseId = id;
         backgroundPause = null;
+        clearStartupSnapshot();
         return;
     }
     if (intentionalPauseId === id) return;
@@ -728,6 +761,9 @@ document.addEventListener('timeupdate', notePlaybackProgress, true);
 document.addEventListener('play', notePlaybackStart, true);
 document.addEventListener('playing', notePlaybackStart, true);
 document.addEventListener('pause', notePlaybackPause, true);
+document.addEventListener('ended', function (event) {
+    if (event.target === video()) clearStartupSnapshot();
+}, true);
 document.addEventListener('play', notePlaybackStart, true);
 document.addEventListener('playing', notePlaybackStart, true);
 
@@ -964,6 +1000,23 @@ setInterval(function () {
     const id = videoId();
     if (!current || !id || current.ended) return;
 
+    // Recover a persisted playing session when Tizen resumes the old page
+    // without any visibility/focus event. Explicit remote pause clears the snapshot.
+    const startupSnapshot = readStartupSnapshot();
+    if (startupSnapshot && startupSnapshot.id === id &&
+        now - startupSnapshot.at >= 20000 &&
+        (current.paused || current.currentTime <= startupSnapshot.time + 0.5) &&
+        now - lastPlaybackControlAt > 5000 &&
+        !recoveryAttempted && !recoveryTimer) {
+        resumeState.stage = 'startup-stale-session';
+        reloadStalledPlayer({
+            id: id,
+            time: Math.max(startupSnapshot.time,
+                Number.isFinite(current.currentTime) ? current.currentTime : 0)
+        });
+        return;
+    }
+
     if (lastObservedVideoId !== null && id !== lastObservedVideoId) {
         recoveryAttempted = false;
         lastObservedVideoId = id;
@@ -1009,5 +1062,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.20-autorecover patch applied successfully")
+print("TTCC 1.15.0-ttcc.21-startup-recover patch applied successfully")
 
