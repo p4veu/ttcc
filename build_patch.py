@@ -265,7 +265,7 @@ if '"screenOff": "Turn off screen"' in pl_text:
 replace_once(
     "service/service.js",
     "moduleName: '@foxreis/tizentube',",
-    "moduleName: 'p4veu/ttcc',",
+    "moduleName: 'p4veu/ttcc@ttcc-23-release',",
     "DIAL module name"
 )
 replace_once(
@@ -278,7 +278,7 @@ replace_once(
 print("TTCC v5 patch applied successfully")
 
 
-# Experimental HA search + screen-control bridge. Published to existing gh/p4veu/ttcc.
+# HA bridge and DIAL launch use the version-specific gh/p4veu/ttcc@ttcc-23-release module.
 # The confirmed working .5 remains frozen in stable-fully-working-ttcc-1.15.0-ttcc.5.
 replace_once(
     "service/service.js",
