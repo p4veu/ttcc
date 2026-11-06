@@ -308,7 +308,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.0-ttcc.21-startup-recover',
+        version: '1.15.0-ttcc.22-home-playback',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -882,9 +882,8 @@ function rememberBeforeHide() {
         };
     }
 
-    if (wasPlaying) {
-        try { current.pause(); } catch (_) {}
-    }
+    // Do not pause here: pressing HOME only backgrounds the app on Samsung TVs.
+    // Preserve the playing session and let Tizen decide whether playback continues.
     resumeState.stage = playbackBeforeHide ? 'hidden-saved' : 'hidden-no-snapshot';
     resumeState.videoId = id;
 }
@@ -1062,5 +1061,5 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.0-ttcc.21-startup-recover patch applied successfully")
+print("TTCC 1.15.0-ttcc.22-home-playback patch applied successfully")
 
