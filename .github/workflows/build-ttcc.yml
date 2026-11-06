@@ -189,13 +189,13 @@ jobs:
       - name: Verify jsDelivr serves pinned release
         if: github.ref == 'refs/heads/main'
         run: |
-          base="https://cdn.jsdelivr.net/gh/p4veu/ttcc@\${GITHUB_SHA}"
-          echo "Checking immutable release URL: \${base}"
+          base="https://cdn.jsdelivr.net/gh/p4veu/ttcc@${GITHUB_SHA}"
+          echo "Checking immutable release URL: ${base}"
           for i in $(seq 1 60); do
-            body="$(curl --fail --silent --show-error "\${base}/package.json" || true)"
+            body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "\${base}/dist/userScript.v23-no-startup-autoplay.js" || true)"
-            service="$(curl --fail --silent --show-error "\${base}/dist/service.v23-no-startup-autoplay.js" || true)"
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v23-no-startup-autoplay.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v23-no-startup-autoplay.js" || true)"
             if echo "$body" | grep -q '"main": "dist/userScript.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.23-no-startup-autoplay"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.23-no-startup-autoplay* ]]; then
               echo "Pinned jsDelivr release is verified."
               exit 0
