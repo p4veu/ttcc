@@ -188,14 +188,25 @@ jobs:
           git tag -f "1.15.0" HEAD
           git push origin "refs/tags/1.15.0" --force
 
-      - name: Purge exact unchanged TizenBrew manifest URL
+      - name: Purge TizenBrew manifest aliases and .24 assets
         if: github.ref == 'refs/heads/main'
         run: |
-          # TizenBrew fetches this exact unversioned manifest URL. Purge this cache key,
-          # not only the @latest alias, before checking the same URL used by the TV.
-          response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/gh/p4veu/ttcc/package.json")"
-          echo "$response"
-          echo "$response" | grep -q '"throttled": false'
+          # Invalidate the unversioned TizenBrew URL plus jsDelivr's latest/stable
+          # semver resolution and the immutable .24 paths. Purging only package.json
+          # at the unversioned path left jsDelivr serving the previous manifest.
+          for path in \
+            "gh/p4veu/ttcc/package.json" \
+            "gh/p4veu/ttcc@latest/package.json" \
+            "gh/p4veu/ttcc@1.15.0/package.json" \
+            "gh/p4veu/ttcc@1.15.0-ttcc.24-startup-retry/package.json" \
+            "gh/p4veu/ttcc/dist/userScript.v24-startup-retry.js" \
+            "gh/p4veu/ttcc/dist/service.v24-startup-retry.js" \
+            "gh/p4veu/ttcc@1.15.0/dist/userScript.v24-startup-retry.js" \
+            "gh/p4veu/ttcc@1.15.0/dist/service.v24-startup-retry.js"; do
+            response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/${path}")"
+            echo "${path}: ${response}"
+            echo "${response}" | grep -q '"throttled": false'
+          done
 
       - name: Verify jsDelivr serves TTCC .23 release alias
         if: github.ref == 'refs/heads/ttcc-23-release'
