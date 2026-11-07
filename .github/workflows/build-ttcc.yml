@@ -2,7 +2,7 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, ttcc-23-release, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
+    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
     paths:
       - build_patch.py
       - chapter_patch.py
@@ -143,6 +143,8 @@ jobs:
           grep -q "chapterCount" dist/service.js
           grep -q "8096" dist/userScript.js
           grep -q "playback stalled after app resume" dist/userScript.js
+          grep -q "__ttcc_startup_retry_v1" dist/userScript.js
+          grep -q "TTCC_STARTUP_RELOAD_ONCE" dist/userScript.js
           ! grep -q "__ttcc_last_active_playback" dist/userScript.v23-no-startup-autoplay.js
           ! grep -q "startup-stale-session" dist/userScript.v23-no-startup-autoplay.js
           grep -q "standby-reload-wait" dist/userScript.v23-no-startup-autoplay.js
