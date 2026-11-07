@@ -28,3 +28,6 @@ Changes:
 
 Upstream: https://github.com/reisxd/TizenTube
 License: GPL-3.0-only
+
+- Startup race guard: if the first module injection arrives after YouTube has begun initialising, reload once so the warmed TizenBrew module cache can inject before YouTube starts; limited to one retry per session.
+- The pre-change .23 state is preserved on backup/ttcc-before-startup-retry-2026-11-07.
