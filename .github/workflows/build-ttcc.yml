@@ -183,8 +183,12 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           # Use a new semver version: jsDelivr keeps the old 1.15.0 package cached.
           test "$version" = "1.15.2"
-          git tag "$version" HEAD
-          git push origin "refs/tags/$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
+            echo "Tag $version already exists; keeping the immutable release tag."
+          else
+            git tag "$version" HEAD
+            git push origin "refs/tags/$version"
+          fi
 
       - name: Purge TizenBrew manifest aliases and .24 assets
         if: github.ref == 'refs/heads/main'
@@ -249,7 +253,8 @@ jobs:
       - name: Verify jsDelivr serves pinned release
         if: github.ref == 'refs/heads/main'
         run: |
-          base="https://cdn.jsdelivr.net/gh/p4veu/ttcc@${GITHUB_SHA}"
+          version="$(node -p "require('./package.json').version")"
+          base="https://cdn.jsdelivr.net/gh/p4veu/ttcc@${version}"
           echo "Checking immutable release URL: ${base}"
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
