@@ -67,7 +67,7 @@ standalone = ROOT / "mods/features/standaloneUserscript.js"
 standalone_text = standalone.read_text(encoding="utf-8")
 if "__ttcc_startup_retry_v1" in standalone_text:
     raise SystemExit("startup guard already present in standaloneUserscript.js")
-standalone.write_text(startup_guard + "\\n" + standalone_text, encoding="utf-8")
+standalone.write_text(startup_guard + "\n" + standalone_text, encoding="utf-8")
 
 # Build from the clean upstream TizenTube 1.15.0 source and change only:
 # 1) guarded one-time retry when the first TizenBrew injection is late,
