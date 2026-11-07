@@ -59,9 +59,9 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v23-no-startup-autoplay.js
+          cp upstream/dist/userScript.js dist/userScript.v24-startup-retry.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v23-no-startup-autoplay.js
+          cp upstream/dist/service.js dist/service.v24-startup-retry.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
@@ -71,9 +71,9 @@ jobs:
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v23-no-startup-autoplay.js",
+            "main": "dist/userScript.v24-startup-retry.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v23-no-startup-autoplay.js",
+            "serviceFile": "dist/service.v24-startup-retry.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -126,9 +126,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v23-no-startup-autoplay.js
+          test -s dist/userScript.v24-startup-retry.js
           test -s dist/service.js
-          test -s dist/service.v23-no-startup-autoplay.js
+          test -s dist/service.v24-startup-retry.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -145,14 +145,14 @@ jobs:
           grep -q "playback stalled after app resume" dist/userScript.js
           grep -q "__ttcc_startup_retry_v1" dist/userScript.js
           grep -q "TTCC_STARTUP_RELOAD_ONCE" dist/userScript.js
-          ! grep -q "__ttcc_last_active_playback" dist/userScript.v23-no-startup-autoplay.js
-          ! grep -q "startup-stale-session" dist/userScript.v23-no-startup-autoplay.js
-          grep -q "standby-reload-wait" dist/userScript.v23-no-startup-autoplay.js
-          grep -q "focus-paused-detected" dist/userScript.v23-no-startup-autoplay.js
-          grep -q "watchdog-return-detected" dist/userScript.v23-no-startup-autoplay.js
-          grep -q "pause-candidate" dist/userScript.v23-no-startup-autoplay.js
-          grep -q '"main": "dist/userScript.v23-no-startup-autoplay.js"' package.json
-          grep -q '"serviceFile": "dist/service.v23-no-startup-autoplay.js"' package.json
+          ! grep -q "__ttcc_last_active_playback" dist/userScript.v24-startup-retry.js
+          ! grep -q "startup-stale-session" dist/userScript.v24-startup-retry.js
+          grep -q "standby-reload-wait" dist/userScript.v24-startup-retry.js
+          grep -q "focus-paused-detected" dist/userScript.v24-startup-retry.js
+          grep -q "watchdog-return-detected" dist/userScript.v24-startup-retry.js
+          grep -q "pause-candidate" dist/userScript.v24-startup-retry.js
+          grep -q '"main": "dist/userScript.v24-startup-retry.js"' package.json
+          grep -q '"serviceFile": "dist/service.v24-startup-retry.js"' package.json
           grep -q '"version": "1.15.0-ttcc.24-startup-retry"' package.json
 
       - name: Upload test module
@@ -217,7 +217,7 @@ jobs:
           echo "The release alias did not return the expected .23 module."
           exit 1
 
-      - name: Verify existing TizenBrew module URL serves .23
+      - name: Verify existing TizenBrew module URL serves .24
         if: github.ref == 'refs/heads/main'
         run: |
           base="https://cdn.jsdelivr.net/gh/p4veu/ttcc"
@@ -225,16 +225,16 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v23-no-startup-autoplay.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v23-no-startup-autoplay.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.24-startup-retry"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.24-startup-retry* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
-              echo "Existing TizenBrew module URL now serves .23."
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v24-startup-retry.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v24-startup-retry.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v24-startup-retry.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v24-startup-retry.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.24-startup-retry"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.24-startup-retry* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
+              echo "Existing TizenBrew module URL now serves .24."
               exit 0
             fi
             echo "Existing module URL still stale; retry $i/60..."
             sleep 5
           done
-          echo "The unchanged TizenBrew module URL still does not serve .23."
+          echo "The unchanged TizenBrew module URL still does not serve .24."
           exit 1
 
       - name: Verify jsDelivr serves pinned release
@@ -245,14 +245,14 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v23-no-startup-autoplay.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v23-no-startup-autoplay.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v23-no-startup-autoplay.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.24-startup-retry"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.24-startup-retry* ]]; then
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v24-startup-retry.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v24-startup-retry.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v24-startup-retry.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v24-startup-retry.js"' && echo "$body" | grep -q '"version": "1.15.0-ttcc.24-startup-retry"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.0-ttcc.24-startup-retry* ]]; then
               echo "Pinned jsDelivr release is verified."
               exit 0
             fi
             echo "Pinned CDN URL not ready; retry $i/60..."
             sleep 5
           done
-          echo "Pinned jsDelivr release did not return the expected .23 files."
+          echo "Pinned jsDelivr release did not return the expected .24 files."
           exit 1
