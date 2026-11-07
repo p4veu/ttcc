@@ -11,10 +11,69 @@ def replace_once(path, old, new, label):
         raise SystemExit(f"{label}: expected exactly 1 match in {path}, found {count}")
     p.write_text(text.replace(old, new, 1), encoding="utf-8")
 
+# Guard against TizenBrew's first asynchronous injection arriving after YouTube started.
+# On that first late injection, reload once. TizenBrew has cached the userscript by then,
+# so the next document receives it immediately, before YouTube initializes its ad pipeline.
+startup_guard = r"""
+(function () {
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host !== 'youtube.com' && host !== 'www.youtube.com') return;
+
+    const key = '__ttcc_startup_retry_v1';
+    let storage = null;
+    try {
+        storage = window.sessionStorage;
+    } catch (_) {
+        return;
+    }
+    if (!storage) return;
+
+    let previousRetry = 0;
+    try {
+        previousRetry = Number(storage.getItem(key)) || 0;
+    } catch (_) {
+        return;
+    }
+
+    const pageAlreadyStarted =
+        document.readyState !== 'loading' ||
+        !!window._yttv ||
+        !!(window.yt && window.yt.config_) ||
+        !!window.ytInitialData ||
+        !!document.querySelector('video');
+
+    if (pageAlreadyStarted) {
+        const now = Date.now();
+        if (!previousRetry || now - previousRetry > 30000) {
+            try {
+                storage.setItem(key, String(now));
+            } catch (_) {
+                return;
+            }
+            console.warn('TTCC: late TizenBrew injection detected; restarting once for early ad-block initialization.');
+            window.location.reload();
+            throw new Error('TTCC_STARTUP_RELOAD_ONCE');
+        }
+    } else if (previousRetry) {
+        // The retry reached a new document early enough; allow future startup repairs.
+        try {
+            storage.removeItem(key);
+        } catch (_) {}
+    }
+})();
+"""
+
+standalone = ROOT / "mods/features/standaloneUserscript.js"
+standalone_text = standalone.read_text(encoding="utf-8")
+if "__ttcc_startup_retry_v1" in standalone_text:
+    raise SystemExit("startup guard already present in standaloneUserscript.js")
+standalone.write_text(startup_guard + "\n" + standalone_text, encoding="utf-8")
+
 # Build from the clean upstream TizenTube 1.15.0 source and change only:
-# 1) direct Screen Off button placement,
-# 2) Screen Off wake-up behavior,
-# 3) DIAL/casting target.
+# 1) guarded one-time retry when the first TizenBrew injection is late,
+# 2) direct Screen Off button placement,
+# 3) Screen Off wake-up behavior,
+# 4) DIAL/casting target.
 
 custom_ui = ROOT / "mods/ui/customUI.js"
 text = custom_ui.read_text(encoding="utf-8")
