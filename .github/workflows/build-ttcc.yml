@@ -67,7 +67,7 @@ jobs:
           {
             "name": "ttcc",
             "appName": "TizenTube AutoRecover .24",
-            "version": "1.15.0-ttcc.24-startup-retry",
+            "version": "1.15.1",
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
@@ -153,7 +153,7 @@ jobs:
           grep -q "pause-candidate" dist/userScript.v24-startup-retry.js
           grep -q '"main": "dist/userScript.v24-startup-retry.js"' package.json
           grep -q '"serviceFile": "dist/service.v24-startup-retry.js"' package.json
-          grep -q '"version": "1.15.0-ttcc.24-startup-retry"' package.json
+          grep -q '"version": "1.15.1"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
@@ -184,9 +184,11 @@ jobs:
           test "$version" = "1.15.0-ttcc.24-startup-retry"
           git tag -f "$version" HEAD
           git push origin "refs/tags/$version" --force
-          # The stable semver tag makes jsDelivr's unversioned URL resolve .24 as latest.
-          git tag -f "1.15.0" HEAD
-          git push origin "refs/tags/1.15.0" --force
+          # Publish a new semver version because jsDelivr caches existing semver versions immutably.
+          # Moving the old 1.15.0 tag cannot replace its cached .23 manifest.
+          test "$version" = "1.15.1"
+          git tag "$version" HEAD
+          git push origin "refs/tags/$version"
 
       - name: Purge TizenBrew manifest aliases and .24 assets
         if: github.ref == 'refs/heads/main'
@@ -197,12 +199,12 @@ jobs:
           for path in \
             "gh/p4veu/ttcc/package.json" \
             "gh/p4veu/ttcc@latest/package.json" \
-            "gh/p4veu/ttcc@1.15.0/package.json" \
-            "gh/p4veu/ttcc@1.15.0-ttcc.24-startup-retry/package.json" \
+            "gh/p4veu/ttcc@1.15.1/package.json" \
+            "gh/p4veu/ttcc@1.15.1/package.json" \
             "gh/p4veu/ttcc/dist/userScript.v24-startup-retry.js" \
             "gh/p4veu/ttcc/dist/service.v24-startup-retry.js" \
-            "gh/p4veu/ttcc@1.15.0/dist/userScript.v24-startup-retry.js" \
-            "gh/p4veu/ttcc@1.15.0/dist/service.v24-startup-retry.js"; do
+            "gh/p4veu/ttcc@1.15.1/dist/userScript.v24-startup-retry.js" \
+            "gh/p4veu/ttcc@1.15.1/dist/service.v24-startup-retry.js"; do
             response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/${path}")"
             echo "${path}: ${response}"
             echo "${response}" | grep -q '"throttled": false'
