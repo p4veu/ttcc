@@ -2,7 +2,7 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
+    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, fix/ttcc-click-launch-v27, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
     paths:
       - build_patch.py
       - chapter_patch.py
@@ -63,22 +63,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v26-document-start.js
+          cp upstream/dist/userScript.js dist/userScript.v27-launch-compatible.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v26-document-start.js
+          cp upstream/dist/service.js dist/service.v27-launch-compatible.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube AutoRecover .26",
-            "version": "1.15.4",
+            "appName": "TizenTube AutoRecover .27",
+            "version": "1.15.5",
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8096%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v26-document-start.js",
-            "evaluateScriptOnDocumentStart": true,
+            "main": "dist/userScript.v27-launch-compatible.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v26-document-start.js",
+            "serviceFile": "dist/service.v27-launch-compatible.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -103,7 +102,7 @@ jobs:
 
           Changes:
           - TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
-          - TizenBrew Document Start injection enabled in the module manifest, so the userscript is registered before YouTube initializes; the one-time reload guard remains a fallback.
+          - Keep TizenBrew's normal module navigation so the Home-screen tile launches reliably; use the guarded one-time reload as a fallback when injection arrives after YouTube has started.
           - direct "Turn off screen / Wyłącz ekran" player button;
           - safe wake-up: the first non-media remote-key sequence only restores the picture;
           - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
@@ -133,9 +132,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v26-document-start.js
+          test -s dist/userScript.v27-launch-compatible.js
           test -s dist/service.js
-          test -s dist/service.v26-document-start.js
+          test -s dist/service.v27-launch-compatible.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -152,17 +151,17 @@ jobs:
           grep -q "playback stalled after app resume" dist/userScript.js
           grep -q "__ttcc_startup_retry_v1" dist/userScript.js
           grep -q "TTCC_STARTUP_RELOAD_ONCE" dist/userScript.js
-          ! grep -q "__ttcc_last_active_playback" dist/userScript.v26-document-start.js
-          ! grep -q "startup-stale-session" dist/userScript.v26-document-start.js
-          grep -q "standby-reload-wait" dist/userScript.v26-document-start.js
-          grep -q "focus-paused-detected" dist/userScript.v26-document-start.js
-          grep -q "watchdog-return-detected" dist/userScript.v26-document-start.js
-          grep -q "pause-candidate" dist/userScript.v26-document-start.js
-          grep -q '"main": "dist/userScript.v26-document-start.js"' package.json
-          grep -q '"serviceFile": "dist/service.v26-document-start.js"' package.json
-          grep -q '"evaluateScriptOnDocumentStart": true' package.json
+          ! grep -q "__ttcc_last_active_playback" dist/userScript.v27-launch-compatible.js
+          ! grep -q "startup-stale-session" dist/userScript.v27-launch-compatible.js
+          grep -q "standby-reload-wait" dist/userScript.v27-launch-compatible.js
+          grep -q "focus-paused-detected" dist/userScript.v27-launch-compatible.js
+          grep -q "watchdog-return-detected" dist/userScript.v27-launch-compatible.js
+          grep -q "pause-candidate" dist/userScript.v27-launch-compatible.js
+          grep -q '"main": "dist/userScript.v27-launch-compatible.js"' package.json
+          grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' package.json
+          ! grep -q 'evaluateScriptOnDocumentStart' package.json
           grep -q 'localhost%3A8096' package.json
-          grep -q '"version": "1.15.4"' package.json
+          grep -q '"version": "1.15.5"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
@@ -182,16 +181,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.4 (.25 startup retry)"
+            git commit -m "build: TTCC 1.15.5 (.27 launch compatibility)"
             git push
           fi
 
-      - name: Publish .26 semver tag for the unchanged TizenBrew module URL
+      - name: Publish .27 semver tag for the unchanged TizenBrew module URL
         if: github.ref == 'refs/heads/main'
         run: |
           version="$(node -p "require('./package.json').version")"
           # Use a new semver version: jsDelivr keeps the old 1.15.0 package cached.
-          test "$version" = "1.15.4"
+          test "$version" = "1.15.5"
           if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
             echo "Tag $version already exists; keeping the immutable release tag."
           else
@@ -199,20 +198,20 @@ jobs:
             git push origin "refs/tags/$version"
           fi
 
-      - name: Purge TizenBrew manifest aliases and .26 assets
+      - name: Purge TizenBrew manifest aliases and .27 assets
         if: github.ref == 'refs/heads/main'
         run: |
           # Invalidate the unversioned TizenBrew URL plus jsDelivr's latest/stable
-          # semver resolution and the immutable .26 paths. Purging only package.json
+          # semver resolution and the immutable .27 paths. Purging only package.json
           # at the unversioned path left jsDelivr serving the previous manifest.
           for path in \
             "gh/p4veu/ttcc/package.json" \
             "gh/p4veu/ttcc@latest/package.json" \
-            "gh/p4veu/ttcc@1.15.4/package.json" \
-            "gh/p4veu/ttcc/dist/userScript.v26-document-start.js" \
-            "gh/p4veu/ttcc/dist/service.v26-document-start.js" \
-            "gh/p4veu/ttcc@1.15.4/dist/userScript.v26-document-start.js" \
-            "gh/p4veu/ttcc@1.15.4/dist/service.v26-document-start.js"; do
+            "gh/p4veu/ttcc@1.15.5/package.json" \
+            "gh/p4veu/ttcc/dist/userScript.v27-launch-compatible.js" \
+            "gh/p4veu/ttcc/dist/service.v27-launch-compatible.js" \
+            "gh/p4veu/ttcc@1.15.5/dist/userScript.v27-launch-compatible.js" \
+            "gh/p4veu/ttcc@1.15.5/dist/service.v27-launch-compatible.js"; do
             response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/${path}")"
             echo "${path}: ${response}"
             echo "${response}" | grep -q '"throttled": false'
@@ -238,7 +237,7 @@ jobs:
           echo "The release alias did not return the expected .23 module."
           exit 1
 
-      - name: Verify existing TizenBrew module URL serves .26
+      - name: Verify existing TizenBrew module URL serves .27
         if: github.ref == 'refs/heads/main'
         run: |
           base="https://cdn.jsdelivr.net/gh/p4veu/ttcc"
@@ -246,10 +245,10 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v26-document-start.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v26-document-start.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v26-document-start.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v26-document-start.js"' && echo "$body" | grep -q '"version": "1.15.4"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.4* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
-              echo "Existing TizenBrew module URL now serves .26."
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v27-launch-compatible.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v27-launch-compatible.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v27-launch-compatible.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' && echo "$body" | grep -q '"version": "1.15.5"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
+              echo "Existing TizenBrew module URL now serves .27."
               exit 0
             fi
             echo "Existing module URL still stale; retry $i/60..."
@@ -267,9 +266,9 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v26-document-start.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v26-document-start.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v26-document-start.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v26-document-start.js"' && echo "$body" | grep -q '"version": "1.15.4"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.4* ]]; then
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v27-launch-compatible.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v27-launch-compatible.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v27-launch-compatible.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' && echo "$body" | grep -q '"version": "1.15.5"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
               echo "Pinned jsDelivr release is verified."
               exit 0
             fi

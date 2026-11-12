@@ -367,7 +367,7 @@ let haResume = null;
 app.get('/ttcc/status', (req, res) => {
     res.json({
         ok: true,
-        version: '1.15.3',
+        version: '1.15.4',
         connected: haLastPoll > 0 && (Date.now() - haLastPoll) < 7000,
         hidden: haHidden,
         focused: haFocused,
@@ -1117,8 +1117,8 @@ replace_once(
 
 replace_once(
     "service/service.js",
-    "version: '1.15.3',",
     "version: '1.15.4',",
+    "version: '1.15.5',",
     "TTCC service version"
 )
 
@@ -1126,5 +1126,5 @@ startup_test = "import assert from 'node:assert/strict';\nimport { readFileSync 
 startup_test_path = ROOT / "mods/tests/startup.test.js"
 startup_test_path.parent.mkdir(parents=True, exist_ok=True)
 startup_test_path.write_text(startup_test, encoding="utf-8")
-print("TTCC 1.15.4 document-start patch applied successfully")
+print("TTCC 1.15.5 launch-compatible patch applied successfully")
 
