@@ -103,6 +103,7 @@ jobs:
 
           Changes:
           - TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
+          - TizenBrew Document Start injection enabled in the module manifest, so the userscript is registered before YouTube initializes; the one-time reload guard remains a fallback.
           - direct "Turn off screen / Wyłącz ekran" player button;
           - safe wake-up: the first non-media remote-key sequence only restores the picture;
           - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
@@ -185,7 +186,7 @@ jobs:
             git push
           fi
 
-      - name: Publish .25 semver tag for the unchanged TizenBrew module URL
+      - name: Publish .26 semver tag for the unchanged TizenBrew module URL
         if: github.ref == 'refs/heads/main'
         run: |
           version="$(node -p "require('./package.json').version")"
@@ -198,11 +199,11 @@ jobs:
             git push origin "refs/tags/$version"
           fi
 
-      - name: Purge TizenBrew manifest aliases and .25 assets
+      - name: Purge TizenBrew manifest aliases and .26 assets
         if: github.ref == 'refs/heads/main'
         run: |
           # Invalidate the unversioned TizenBrew URL plus jsDelivr's latest/stable
-          # semver resolution and the immutable .25 paths. Purging only package.json
+          # semver resolution and the immutable .26 paths. Purging only package.json
           # at the unversioned path left jsDelivr serving the previous manifest.
           for path in \
             "gh/p4veu/ttcc/package.json" \
@@ -237,7 +238,7 @@ jobs:
           echo "The release alias did not return the expected .23 module."
           exit 1
 
-      - name: Verify existing TizenBrew module URL serves .25
+      - name: Verify existing TizenBrew module URL serves .26
         if: github.ref == 'refs/heads/main'
         run: |
           base="https://cdn.jsdelivr.net/gh/p4veu/ttcc"
@@ -248,7 +249,7 @@ jobs:
             script="$(curl --fail --silent --show-error "${base}/dist/userScript.v26-document-start.js" || true)"
             service="$(curl --fail --silent --show-error "${base}/dist/service.v26-document-start.js" || true)"
             if echo "$body" | grep -q '"main": "dist/userScript.v26-document-start.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v26-document-start.js"' && echo "$body" | grep -q '"version": "1.15.4"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.4* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
-              echo "Existing TizenBrew module URL now serves .25."
+              echo "Existing TizenBrew module URL now serves .26."
               exit 0
             fi
             echo "Existing module URL still stale; retry $i/60..."
