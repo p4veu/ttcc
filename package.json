@@ -1,14 +1,13 @@
 {
   "name": "ttcc",
-  "appName": "TizenTube AutoRecover .26",
-  "version": "1.15.4",
+  "appName": "TizenTube AutoRecover .27",
+  "version": "1.15.5",
   "description": "TizenTube with playback recovery after TV standby and app switching.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8096%2Fdial%2Fapps%2FYouTube",
-  "main": "dist/userScript.v26-document-start.js",
-  "evaluateScriptOnDocumentStart": true,
+  "main": "dist/userScript.v27-launch-compatible.js",
   "author": "Reis Can; TTCC patch",
-  "serviceFile": "dist/service.v26-document-start.js",
+  "serviceFile": "dist/service.v27-launch-compatible.js",
   "keys": [
     "MediaPlayPause",
     "MediaPlay",
