@@ -1,13 +1,10 @@
 # TTCC
 
-**Current test release: .25 (1.15.3).** This version includes the TizenTube early-injection fix from upstream PR #759. DOM-dependent startup, PiP service discovery, and account-action handling are guarded so an early TizenBrew injection does not abort the rest of TizenTube.
-
-
 Custom TizenBrew module built from the clean TizenTube 1.15.0 source
 (upstream commit 893b663d35efa558d8bdf9f54f0c4f9a31ab6a07).
 
 Changes:
-- TizenBrew early-injection protection: wait for the document, DOM, and PiP services; tolerate missing or malformed YouTube account-action data; includes document-start regression tests.
+- TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
 - direct "Turn off screen / Wyłącz ekran" player button;
 - safe wake-up: the first non-media remote-key sequence only restores the picture;
 - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
