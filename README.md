@@ -5,6 +5,7 @@ Custom TizenBrew module built from the clean TizenTube 1.15.0 source
 
 Changes:
 - TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
+- TizenBrew Document Start injection enabled in the module manifest, so the userscript is registered before YouTube initializes; the one-time reload guard remains a fallback.
 - direct "Turn off screen / Wyłącz ekran" player button;
 - safe wake-up: the first non-media remote-key sequence only restores the picture;
 - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
