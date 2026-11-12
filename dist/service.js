@@ -50407,7 +50407,7 @@ var haResume = null;
 app.get('/ttcc/status', function (req, res) {
   res.json({
     ok: true,
-    version: '1.15.4',
+    version: '1.15.5',
     connected: haLastPoll > 0 && Date.now() - haLastPoll < 7000,
     hidden: haHidden,
     focused: haFocused,
