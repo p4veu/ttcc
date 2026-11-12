@@ -1067,5 +1067,64 @@ restoreAfterReload();
 """
 (ROOT / "mods/features/resumePlayback.js").write_text(resume_playback, encoding="utf-8")
 
-print("TTCC 1.15.2 patch applied successfully")
+# TizenBrew early-injection hardening, adapted from TizenTube PR #759.
+replace_once(
+    "mods/spatial-navigation-polyfill.js",
+    "    window.Element.prototype.getSpatialNavigationContainer = getSpatialNavigationContainer;\n\n    /*",
+    "    window.Element.prototype.getSpatialNavigationContainer = getSpatialNavigationContainer;\n\n    if (!document.documentElement) {\n      document.addEventListener('DOMContentLoaded', initiateSpatialNavigation);\n      return;\n    }\n\n    /*",
+    "defer spatial navigation until document root exists"
+)
+
+replace_once(
+    "mods/ui/theme.js",
+    "document.head.appendChild(style);",
+    "if (document.head) {\n    document.head.appendChild(style);\n} else {\n    document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));\n}",
+    "defer theme style until document head exists"
+)
+
+replace_once(
+    "mods/features/pictureInPicture.js",
+    "    const mappings = Object.values(window._yttv).find(a => a && a.mappings);\n    PlayerService = mappings.get('PlayerService');\n    const PlaybackPreviewService = mappings.get('PlaybackPreviewService');",
+    "    const mappings = Object.values(window._yttv || {}).find(a => a && a.mappings);\n    if (!mappings || typeof mappings.get !== 'function' || !mappings.get('PlayerService') || !mappings.get('PlaybackPreviewService')) {\n        return setTimeout(pipLoad, 250);\n    }\n    PlayerService = mappings.get('PlayerService');\n    const PlaybackPreviewService = mappings.get('PlaybackPreviewService');",
+    "wait for TizenTube PiP services"
+)
+
+replace_once(
+    "mods/features/pictureInPicture.js",
+    "observerPipEnter.observe(document.body, { childList: true, subtree: true });",
+    "function observePipEnter() {\n    observerPipEnter.observe(document.body, { childList: true, subtree: true });\n}\n\nif (document.body) {\n    observePipEnter();\n} else {\n    document.addEventListener('DOMContentLoaded', observePipEnter);\n}",
+    "defer PiP observer until document body exists"
+)
+
+replace_once(
+    "mods/ui/disableWhosWatching.js",
+    "    const LeanbackRecurringActions = JSON.parse(localStorage['yt.leanback.default::recurring_actions']);",
+    "    const storedActions = localStorage['yt.leanback.default::recurring_actions'];\n    if (!storedActions) return;\n\n    let LeanbackRecurringActions;\n    try {\n        LeanbackRecurringActions = JSON.parse(storedActions);\n    } catch (e) {\n        console.warn('Unable to read YouTube recurring actions:', e);\n        return;\n    }\n    if (!LeanbackRecurringActions?.data?.data) return;",
+    "guard missing or malformed recurring actions"
+)
+replace_once(
+    "mods/ui/disableWhosWatching.js",
+    "            LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts.lastFired = date.getTime();",
+    "            LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts &&\n                (LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts.lastFired = date.getTime());",
+    "guard missing recurring account action (enabled branch)"
+)
+replace_once(
+    "mods/ui/disableWhosWatching.js",
+    "        LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts.lastFired = date.getTime();",
+    "        LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts &&\n            (LeanbackRecurringActions.data.data.whos_watching_fullscreen_zero_accounts.lastFired = date.getTime());",
+    "guard missing recurring account action (disabled branch)"
+)
+
+replace_once(
+    "service/service.js",
+    "version: '1.15.2',",
+    "version: '1.15.3',",
+    "TTCC service version"
+)
+
+startup_test = "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\nimport vm from 'node:vm';\n\nconst bundle = new vm.Script(readFileSync(\n    process.env.TIZENTUBE_TEST_BUNDLE || new URL('../../dist/userScript.js', import.meta.url),\n    'utf8'\n));\nconst actionsKey = 'yt.leanback.default::recurring_actions';\n\nfunction eventTarget() {\n    const listeners = new Map();\n    return {\n        addEventListener(type, listener) {\n            if (!listeners.has(type)) listeners.set(type, []);\n            listeners.get(type).push(listener);\n        },\n        dispatch(type) {\n            for (const listener of listeners.get(type) || []) listener();\n        },\n    };\n}\n\nfunction element() {\n    return {\n        ...eventTarget(),\n        style: {},\n        children: [],\n        classList: { contains: () => false },\n        appendChild(child) { this.children.push(child); },\n        setAttribute() {},\n    };\n}\n\n// Exercise the shipped IIFE with a new JS realm per page. Timers are queued so\n// YouTube's DOM and services can arrive after TizenBrew injects the cached mod.\nfunction page(stage, storedActions, config = {}) {\n    const document = {\n        ...eventTarget(),\n        readyState: stage === 'loaded' ? 'complete' : 'loading',\n        documentElement: stage === 'empty' ? null : element(),\n        head: stage === 'empty' ? null : element(),\n        body: ['empty', 'head'].includes(stage) ? null : element(),\n        createElement: element,\n        querySelector: () => null,\n        getElementById: () => null,\n    };\n    const timers = [];\n    const observations = [];\n    const registeredProperties = [];\n    const storage = { 'ytaf-configuration': JSON.stringify(config) };\n    if (storedActions !== undefined) storage[actionsKey] = storedActions;\n    const context = vm.createContext({\n        ...eventTarget(),\n        document,\n        navigator: { language: 'en-US', userAgent: 'Tizen' },\n        location: { hostname: 'www.youtube.com', href: 'https://www.youtube.com/tv', hash: '' },\n        localStorage: storage,\n        console: { log() {}, info() {}, warn() {}, error() {} },\n        setTimeout(callback) { timers.push(callback); },\n        setInterval() {},\n        clearTimeout() {},\n        clearInterval() {},\n        fetch() {},\n        MutationObserver: class {\n            observe(target) {\n                assert.ok(target, 'MutationObserver needs a DOM node');\n                observations.push(target);\n            }\n        },\n        Element: class {},\n        CSS: { registerProperty(property) { registeredProperties.push(property.name); } },\n        getComputedStyle(target) {\n            assert.ok(target, 'getComputedStyle needs a DOM element');\n            return { getPropertyValue: () => '' };\n        },\n    });\n    vm.runInContext('window = self = globalThis;', context);\n    bundle.runInContext(context);\n    return { context, document, timers, observations, storage, registeredProperties };\n}\n\nfunction assertCoreFeatures(context) {\n    const parsed = vm.runInContext(`JSON.parse('${JSON.stringify({\n        adPlacements: [{}], playerAds: [{}], adSlots: [{}], videoDetails: { videoId: 'test' },\n    })}')`, context);\n    assert.equal(parsed.adPlacements.length, 0);\n    assert.equal(parsed.playerAds, false);\n    assert.equal(parsed.adSlots.length, 0);\n    assert.equal(parsed.videoDetails.videoId, 'test');\n\n    const settings = vm.runInContext('JSON.parse(\\'{\"title\":{\"runs\":[]},\"items\":[]}\\')', context);\n    assert.equal(settings.items.length, 1, 'TizenTube settings are installed');\n    assert.ok(context.captionStyleHandler, 'initialization continues past account-picker setup');\n    assert.ok(context.queuedVideos, 'later features also initialize');\n}\n\nconst validActions = JSON.stringify({\n    data: { data: {\n        'startup-screen-account-selector-with-guest': { lastFired: 0 },\n        whos_watching_fullscreen_zero_accounts: { lastFired: 0 },\n        'startup-screen-signed-out-welcome-back': { lastFired: 0 },\n    } },\n});\n\nfor (const stage of ['empty', 'head', 'body', 'loaded']) {\n    for (const [name, storedActions] of Object.entries({\n        missing: undefined,\n        malformed: 'not JSON',\n        null: 'null',\n        incomplete: '{\"data\":{}}',\n        changed: '{\"data\":{\"data\":{\"new-action\":{\"lastFired\":0}}}}',\n        valid: validActions,\n    })) {\n        test(`startup at ${stage} with ${name} recurring actions keeps ads blocked and settings installed`, () => {\n            const { context, storage } = page(stage, storedActions);\n            assertCoreFeatures(context);\n            if (name === 'valid') {\n                const actions = JSON.parse(storage[actionsKey]).data.data;\n                assert.ok(actions.whos_watching_fullscreen_zero_accounts.lastFired > Date.now());\n            } else {\n                assert.equal(storage[actionsKey], storedActions);\n            }\n        });\n    }\n}\n\ntest('early injection attaches the theme and PiP observer when the DOM arrives', () => {\n    const { context, document, observations, registeredProperties } = page('empty');\n    assert.equal(observations.length, 0);\n    assert.equal(registeredProperties.length, 0);\n    assert.ok(context.__spatialNavigation__, 'navigation APIs are available before the DOM');\n    document.documentElement = element();\n    document.head = element();\n    document.body = element();\n    document.readyState = 'interactive';\n    document.dispatch('DOMContentLoaded');\n    assert.ok(observations.includes(document.body));\n    assert.ok(document.head.children.some(child => child.textContent.includes('#container')));\n    assert.equal(registeredProperties.length, 3, 'navigation CSS registers after the root element exists');\n    context.dispatch('load');\n    assertCoreFeatures(context);\n});\n\ntest('PiP waits for YouTube services when injected into an already loaded page', () => {\n    const { context, timers } = page('loaded');\n    vm.runInContext(`\n        previewCalls = 0;\n        preview = { start() { previewCalls++; }, stop() { previewCalls++; } };\n        services = new Map([['PlayerService', {}], ['PlaybackPreviewService', preview]]);\n        services.mappings = true;\n        _yttv = { services };\n    `, context);\n    for (const callback of timers.splice(0)) callback();\n    vm.runInContext('preview.start(); preview.stop(); isPipPlaying = true; preview.start(); preview.stop();', context);\n    assert.equal(context.previewCalls, 2, 'PiP hooks install after services become available');\n    assertCoreFeatures(context);\n});\n\ntest('enabling the account picker tolerates a missing legacy action', () => {\n    const storedActions = '{\"data\":{\"data\":{\"startup-screen-signed-out-welcome-back\":{\"lastFired\":0}}}}';\n    const { context, storage } = page('body', storedActions, { enableWhoIsWatchingMenu: true });\n    assertCoreFeatures(context);\n    assert.ok(JSON.parse(storage[actionsKey]).data.data['startup-screen-signed-out-welcome-back'].lastFired > 0);\n});\n"
+startup_test_path = ROOT / "mods/tests/startup.test.js"
+startup_test_path.parent.mkdir(parents=True, exist_ok=True)
+startup_test_path.write_text(startup_test, encoding="utf-8")
+print("TTCC 1.15.3 early-injection patch applied successfully")
 
