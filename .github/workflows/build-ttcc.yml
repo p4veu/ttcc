@@ -2,7 +2,7 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, fix/ttcc-click-launch-v27, fix/ttcc-play-pause-recovery-v28, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
+    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, fix/ttcc-click-launch-v27, fix/ttcc-play-pause-recovery-v28, fix/ttcc-legacy-chromium-injection-v29, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
     paths:
       - build_patch.py
       - chapter_patch.py
@@ -10,6 +10,8 @@ on:
       - test_chapters.mjs
       - ttcc_playback_control.mjs
       - test_playback_control.mjs
+      - sanitize_legacy_chromium.py
+      - test_legacy_chromium.py
       - .github/workflows/build-ttcc.yml
   workflow_dispatch:
 
@@ -54,6 +56,11 @@ jobs:
           npm ci
           npm run build
 
+      - name: Sanitize userscript for legacy Tizen Chromium
+        run: |
+          python3 -m unittest -v test_legacy_chromium
+          python3 sanitize_legacy_chromium.py upstream/dist/userScript.js
+
       - name: Test TizenBrew early-injection regression
         working-directory: upstream/mods
         run: node --test tests/*.test.js
@@ -68,21 +75,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v28-play-pause-recovery.js
+          cp upstream/dist/userScript.js dist/userScript.v29-legacy-chromium.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v28-play-pause-recovery.js
+          cp upstream/dist/service.js dist/service.v29-legacy-chromium.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube AutoRecover .28",
-            "version": "1.15.6",
+            "appName": "TizenTube AutoRecover .29",
+            "version": "1.15.7",
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8096%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v28-play-pause-recovery.js",
+            "main": "dist/userScript.v29-legacy-chromium.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v28-play-pause-recovery.js",
+            "serviceFile": "dist/service.v29-legacy-chromium.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -108,6 +115,7 @@ jobs:
           Changes:
           - TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
           - Keep TizenBrew's normal module navigation so the Home-screen tile launches reliably; use the guarded one-time reload as a fallback when injection arrives after YouTube has started.
+          - Strip the two non-BMP glyphs from i18next's log banner; TizenBrew 2.0.5 uses CDP Runtime.evaluate and older Tizen Chromium builds can fail to parse those surrogate pairs before the userscript starts.
           - direct "Turn off screen / Wyłącz ekran" player button;
           - safe wake-up: the first non-media remote-key sequence only restores the picture;
           - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
@@ -137,9 +145,15 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v28-play-pause-recovery.js
+          test -s dist/userScript.v29-legacy-chromium.js
+          python3 - <<'PY'
+          from pathlib import Path
+          for file in (Path('dist/userScript.js'), Path('dist/userScript.v29-legacy-chromium.js')):
+              source = file.read_text(encoding='utf-8')
+              assert not any(ord(char) > 0xFFFF for char in source), f'non-BMP Unicode remains in {file}'
+          PY
           test -s dist/service.js
-          test -s dist/service.v28-play-pause-recovery.js
+          test -s dist/service.v29-legacy-chromium.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -156,23 +170,23 @@ jobs:
           grep -q "playback stalled after app resume" dist/userScript.js
           grep -q "__ttcc_startup_retry_v1" dist/userScript.js
           grep -q "TTCC_STARTUP_RELOAD_ONCE" dist/userScript.js
-          ! grep -q "__ttcc_last_active_playback" dist/userScript.v28-play-pause-recovery.js
-          ! grep -q "startup-stale-session" dist/userScript.v28-play-pause-recovery.js
-          grep -q "standby-reload-wait" dist/userScript.v28-play-pause-recovery.js
-          grep -q "focus-paused-detected" dist/userScript.v28-play-pause-recovery.js
-          grep -q "watchdog-return-detected" dist/userScript.v28-play-pause-recovery.js
-          grep -q "pause-candidate" dist/userScript.v28-play-pause-recovery.js
-          grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' package.json
-          grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' package.json
+          ! grep -q "__ttcc_last_active_playback" dist/userScript.v29-legacy-chromium.js
+          ! grep -q "startup-stale-session" dist/userScript.v29-legacy-chromium.js
+          grep -q "standby-reload-wait" dist/userScript.v29-legacy-chromium.js
+          grep -q "focus-paused-detected" dist/userScript.v29-legacy-chromium.js
+          grep -q "watchdog-return-detected" dist/userScript.v29-legacy-chromium.js
+          grep -q "pause-candidate" dist/userScript.v29-legacy-chromium.js
+          grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' package.json
+          grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' package.json
           ! grep -q 'evaluateScriptOnDocumentStart' package.json
           grep -q 'localhost%3A8096' package.json
-          grep -q '"version": "1.15.6"' package.json
+          grep -q '"version": "1.15.7"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: ttcc-play-pause-recovery-test
+          name: ttcc-legacy-chromium-test
           path: |
             dist/
             package.json
@@ -186,16 +200,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.6 (.28 Play/Pause recovery)"
+            git commit -m "build: TTCC 1.15.7 (.29 legacy Chromium injection)"
             git push
           fi
 
-      - name: Publish .27 semver tag for the unchanged TizenBrew module URL
+      - name: Publish .29 semver tag for the unchanged TizenBrew module URL
         if: github.ref == 'refs/heads/main'
         run: |
           version="$(node -p "require('./package.json').version")"
           # Use a new semver version: jsDelivr keeps the old 1.15.0 package cached.
-          test "$version" = "1.15.6"
+          test "$version" = "1.15.7"
           if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
             echo "Tag $version already exists; keeping the immutable release tag."
           else
@@ -203,20 +217,24 @@ jobs:
             git push origin "refs/tags/$version"
           fi
 
-      - name: Purge TizenBrew manifest aliases and .27 assets
+      - name: Purge TizenBrew manifest aliases and .29 assets
         if: github.ref == 'refs/heads/main'
         run: |
           # Invalidate the unversioned TizenBrew URL plus jsDelivr's latest/stable
-          # semver resolution and the immutable .27 paths. Purging only package.json
+          # semver resolution and the new .29 assets. Purging only package.json
           # at the unversioned path left jsDelivr serving the previous manifest.
           for path in \
             "gh/p4veu/ttcc/package.json" \
             "gh/p4veu/ttcc@latest/package.json" \
             "gh/p4veu/ttcc@1.15.5/package.json" \
-            "gh/p4veu/ttcc/dist/userScript.v28-play-pause-recovery.js" \
-            "gh/p4veu/ttcc/dist/service.v28-play-pause-recovery.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/userScript.v28-play-pause-recovery.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/service.v28-play-pause-recovery.js"; do
+            "gh/p4veu/ttcc@1.15.6/package.json" \
+            "gh/p4veu/ttcc@1.15.7/package.json" \
+            "gh/p4veu/ttcc/dist/userScript.v29-legacy-chromium.js" \
+            "gh/p4veu/ttcc/dist/service.v29-legacy-chromium.js" \
+            "gh/p4veu/ttcc@1.15.6/dist/userScript.v28-play-pause-recovery.js" \
+            "gh/p4veu/ttcc@1.15.6/dist/service.v28-play-pause-recovery.js" \
+            "gh/p4veu/ttcc@1.15.7/dist/userScript.v29-legacy-chromium.js" \
+            "gh/p4veu/ttcc@1.15.7/dist/service.v29-legacy-chromium.js"; do
             response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/${path}")"
             echo "${path}: ${response}"
             echo "${response}" | grep -q '"throttled": false'
@@ -242,7 +260,7 @@ jobs:
           echo "The release alias did not return the expected .23 module."
           exit 1
 
-      - name: Verify existing TizenBrew module URL serves .27
+      - name: Verify existing TizenBrew module URL serves .29
         if: github.ref == 'refs/heads/main'
         run: |
           base="https://cdn.jsdelivr.net/gh/p4veu/ttcc"
@@ -250,16 +268,16 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v28-play-pause-recovery.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v28-play-pause-recovery.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"version": "1.15.6"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
-              echo "Existing TizenBrew module URL now serves .28."
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v29-legacy-chromium.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v29-legacy-chromium.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
+              echo "Existing TizenBrew module URL now serves .29."
               exit 0
             fi
             echo "Existing module URL still stale; retry $i/60..."
             sleep 5
           done
-          echo "The unchanged TizenBrew module URL still does not serve .25."
+          echo "The unchanged TizenBrew module URL still does not serve .29."
           exit 1
 
       - name: Verify jsDelivr serves pinned release
@@ -271,14 +289,14 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v28-play-pause-recovery.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v28-play-pause-recovery.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"version": "1.15.6"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
-              echo "Pinned jsDelivr release is verified."
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v29-legacy-chromium.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v29-legacy-chromium.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
+              echo "Pinned jsDelivr .29 release is verified."
               exit 0
             fi
             echo "Pinned CDN URL not ready; retry $i/60..."
             sleep 5
           done
-          echo "Pinned jsDelivr release did not return the expected .28 files."
+          echo "Pinned jsDelivr release did not return the expected .29 files."
           exit 1
