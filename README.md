@@ -21,7 +21,7 @@ Changes:
 - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
 - Chapter title tracks the preview clock while seeking before the position is confirmed.
 - Screen Off is first in native engagement actions; empty native action rows remain untouched.
-- AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
+- AutoRecover: distinguish Play from Pause/Stop commands, so a Play key after TV wake cannot suppress recovery when Samsung reports a delayed pause event.\n          - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
 - AutoRecover: preserve the video and its position after the TV suspends playback, with extra focus and pause-event detection.
 - No startup autoplay: normal browsing or pausing never persists or reopens the last video.
 - AutoRecover remains limited to recovery after a detected app return or genuinely stalled playback.
