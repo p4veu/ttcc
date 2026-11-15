@@ -6,6 +6,7 @@ Custom TizenBrew module built from the clean TizenTube 1.15.0 source
 Changes:
 - TizenBrew early-injection protection from TizenTube PR #759: defer DOM-dependent startup, wait for PiP services, and guard missing/malformed account-action data; includes startup regression tests.
 - Keep TizenBrew's normal module navigation so the Home-screen tile launches reliably; use the guarded one-time reload as a fallback when injection arrives after YouTube has started.
+- Strip the two non-BMP glyphs from i18next's log banner; TizenBrew 2.0.5 uses CDP Runtime.evaluate and older Tizen Chromium builds can fail to parse those surrogate pairs before the userscript starts.
 - direct "Turn off screen / Wyłącz ekran" player button;
 - safe wake-up: the first non-media remote-key sequence only restores the picture;
 - Play/Pause keeps controlling playback while Screen Off stays black, including Samsung trailing key events;
