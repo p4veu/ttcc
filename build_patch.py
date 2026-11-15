@@ -623,16 +623,23 @@ entry_text = entry.read_text(encoding="utf-8")
 entry_text += "\nimport './features/haSearch.js';\nimport './features/resumePlayback.js';\n"
 entry.write_text(entry_text, encoding="utf-8")
 
+playback_control = ROOT / "mods/features/resumePlaybackControl.mjs"
+playback_control.write_text(
+    Path(__file__).with_name("ttcc_playback_control.mjs").read_text(encoding="utf-8"),
+    encoding="utf-8"
+)
+
 resume_playback = r"""// Tizen can leave the player alive but stop its media pipeline after an app switch.
 // Recover on lifecycle events, and use a watchdog when Samsung omits those events.
 import resolveCommand from '../resolveCommand.js';
+import { isUserStopOrPauseControl } from './resumePlaybackControl.mjs';
 
 const RECOVERY_KEY = '__ttcc_resume_once';
 let playbackBeforeHide = null;
 let recentPlayback = null;
 let backgroundPause = null;
 let hiddenAt = null;
-let lastPlaybackControlAt = 0;
+let lastIntentionalPauseAt = 0;
 let intentionalPauseId = null;
 let recoveryTimer = null;
 let recoveryAttempted = false;
@@ -665,36 +672,8 @@ function videoId() {
 }
 
 function markPlaybackControl(event) {
-    const now = Date.now();
-    if (event.type === 'keydown') {
-        const code = event.keyCode || event.which || 0;
-        const key = event.key || '';
-        const active = document.activeElement;
-        const label = active
-            ? String((active.getAttribute && (active.getAttribute('aria-label') || active.getAttribute('title'))) ||
-                active.className || '')
-            : '';
-        const focusedPlaybackButton = /play|pause|odtwórz|odtworz|wstrzymaj/i.test(label);
-        if (code === 10252 || code === 415 || code === 19 ||
-            key === 'MediaPlayPause' || key === 'MediaPlay' || key === 'MediaPause' ||
-            code === 32 || key === ' ' ||
-            ((code === 13 || key === 'Enter') && focusedPlaybackButton)) {
-            lastPlaybackControlAt = now;
-        }
-        return;
-    }
-    const target = event.target && event.target.closest
-        ? event.target.closest('video,button,[role="button"]') : null;
-    if (!target) return;
-    const label = [
-        target.getAttribute && target.getAttribute('aria-label'),
-        target.getAttribute && target.getAttribute('title'),
-        target.className,
-        target.textContent
-    ].filter(Boolean).join(' ');
-    if ((target.tagName && target.tagName.toLowerCase() === 'video') ||
-        /play|pause|odtwórz|odtworz|wstrzymaj/i.test(label)) {
-        lastPlaybackControlAt = now;
+    if (isUserStopOrPauseControl(event, video(), document.activeElement)) {
+        lastIntentionalPauseAt = Date.now();
     }
 }
 
@@ -767,7 +746,7 @@ function notePlaybackPause(event) {
     const now = Date.now();
     if (!id || !recentPlayback || recentPlayback.id !== id ||
         now - recentPlayback.at > 15000) return;
-    if (now - lastPlaybackControlAt <= 2500) {
+    if (now - lastIntentionalPauseAt <= 2500) {
         intentionalPauseId = id;
         backgroundPause = null;
         return;
@@ -1118,7 +1097,7 @@ replace_once(
 replace_once(
     "service/service.js",
     "version: '1.15.4',",
-    "version: '1.15.5',",
+    "version: '1.15.6',",
     "TTCC service version"
 )
 
@@ -1126,5 +1105,5 @@ startup_test = "import assert from 'node:assert/strict';\nimport { readFileSync 
 startup_test_path = ROOT / "mods/tests/startup.test.js"
 startup_test_path.parent.mkdir(parents=True, exist_ok=True)
 startup_test_path.write_text(startup_test, encoding="utf-8")
-print("TTCC 1.15.5 launch-compatible patch applied successfully")
+print("TTCC 1.15.6 Play/Pause recovery patch applied successfully")
 

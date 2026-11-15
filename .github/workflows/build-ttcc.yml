@@ -2,12 +2,14 @@ name: Build TTCC module
 
 on:
   push:
-    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, fix/ttcc-click-launch-v27, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
+    branches: [main, ttcc-23-release, fix/ttcc-late-injection-retry, fix/ttcc-first-startup-v25, fix/ttcc-document-start-injection-v26, fix/ttcc-click-launch-v27, fix/ttcc-play-pause-recovery-v28, feature/ttcc-chapters, feature/ttcc-chapters-ui, feature/ttcc-seek-preview]
     paths:
       - build_patch.py
       - chapter_patch.py
       - ttcc_chapters.js
       - test_chapters.mjs
+      - ttcc_playback_control.mjs
+      - test_playback_control.mjs
       - .github/workflows/build-ttcc.yml
   workflow_dispatch:
 
@@ -43,6 +45,9 @@ jobs:
       - name: Test chapter extraction
         run: node test_chapters.mjs
 
+      - name: Test Play/Pause recovery intent
+        run: node --test test_playback_control.mjs
+
       - name: Build userscript
         working-directory: upstream/mods
         run: |
@@ -63,21 +68,21 @@ jobs:
         run: |
           mkdir -p dist
           cp upstream/dist/userScript.js dist/userScript.js
-          cp upstream/dist/userScript.js dist/userScript.v27-launch-compatible.js
+          cp upstream/dist/userScript.js dist/userScript.v28-play-pause-recovery.js
           cp upstream/dist/service.js dist/service.js
-          cp upstream/dist/service.js dist/service.v27-launch-compatible.js
+          cp upstream/dist/service.js dist/service.v28-play-pause-recovery.js
           cp upstream/LICENSE LICENSE
           cat > package.json <<'EOF'
           {
             "name": "ttcc",
-            "appName": "TizenTube AutoRecover .27",
-            "version": "1.15.5",
+            "appName": "TizenTube AutoRecover .28",
+            "version": "1.15.6",
             "description": "TizenTube with playback recovery after TV standby and app switching.",
             "packageType": "mods",
             "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8096%2Fdial%2Fapps%2FYouTube",
-            "main": "dist/userScript.v27-launch-compatible.js",
+            "main": "dist/userScript.v28-play-pause-recovery.js",
             "author": "Reis Can; TTCC patch",
-            "serviceFile": "dist/service.v27-launch-compatible.js",
+            "serviceFile": "dist/service.v28-play-pause-recovery.js",
             "keys": [
               "MediaPlayPause",
               "MediaPlay",
@@ -118,7 +123,7 @@ jobs:
           - Chapter overlay stays outside YouTube's frequently rebuilt progress-bar DOM.
           - Chapter title tracks the preview clock while seeking before the position is confirmed.
           - Screen Off is first in native engagement actions; empty native action rows remain untouched.
-          - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
+          - AutoRecover: distinguish Play from Pause/Stop commands, so a Play key after TV wake cannot suppress recovery when Samsung reports a delayed pause event.\n          - AutoRecover: detect system-paused playback and app returns when Tizen omits visibilitychange; retry or refresh a stalled player once.
           - AutoRecover: preserve the video and its position after the TV suspends playback, with extra focus and pause-event detection.
           - No startup autoplay: normal browsing or pausing never persists or reopens the last video.
           - AutoRecover remains limited to recovery after a detected app return or genuinely stalled playback.
@@ -132,9 +137,9 @@ jobs:
       - name: Verify built module
         run: |
           test -s dist/userScript.js
-          test -s dist/userScript.v27-launch-compatible.js
+          test -s dist/userScript.v28-play-pause-recovery.js
           test -s dist/service.js
-          test -s dist/service.v27-launch-compatible.js
+          test -s dist/service.v28-play-pause-recovery.js
           grep -q "TRANSPORT_CONTROLS_BUTTON_TYPE_TURN_OFF_SCREEN" dist/userScript.js
           grep -q "data-ttcc-screen-off" dist/userScript.js
           grep -q "10252" dist/userScript.js
@@ -151,23 +156,23 @@ jobs:
           grep -q "playback stalled after app resume" dist/userScript.js
           grep -q "__ttcc_startup_retry_v1" dist/userScript.js
           grep -q "TTCC_STARTUP_RELOAD_ONCE" dist/userScript.js
-          ! grep -q "__ttcc_last_active_playback" dist/userScript.v27-launch-compatible.js
-          ! grep -q "startup-stale-session" dist/userScript.v27-launch-compatible.js
-          grep -q "standby-reload-wait" dist/userScript.v27-launch-compatible.js
-          grep -q "focus-paused-detected" dist/userScript.v27-launch-compatible.js
-          grep -q "watchdog-return-detected" dist/userScript.v27-launch-compatible.js
-          grep -q "pause-candidate" dist/userScript.v27-launch-compatible.js
-          grep -q '"main": "dist/userScript.v27-launch-compatible.js"' package.json
-          grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' package.json
+          ! grep -q "__ttcc_last_active_playback" dist/userScript.v28-play-pause-recovery.js
+          ! grep -q "startup-stale-session" dist/userScript.v28-play-pause-recovery.js
+          grep -q "standby-reload-wait" dist/userScript.v28-play-pause-recovery.js
+          grep -q "focus-paused-detected" dist/userScript.v28-play-pause-recovery.js
+          grep -q "watchdog-return-detected" dist/userScript.v28-play-pause-recovery.js
+          grep -q "pause-candidate" dist/userScript.v28-play-pause-recovery.js
+          grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' package.json
+          grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' package.json
           ! grep -q 'evaluateScriptOnDocumentStart' package.json
           grep -q 'localhost%3A8096' package.json
-          grep -q '"version": "1.15.5"' package.json
+          grep -q '"version": "1.15.6"' package.json
 
       - name: Upload test module
         if: github.ref != 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: ttcc-startup-fix-test
+          name: ttcc-play-pause-recovery-test
           path: |
             dist/
             package.json
@@ -181,7 +186,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist package.json LICENSE README.md
           if ! git diff --cached --quiet; then
-            git commit -m "build: TTCC 1.15.5 (.27 launch compatibility)"
+            git commit -m "build: TTCC 1.15.6 (.28 Play/Pause recovery)"
             git push
           fi
 
@@ -190,7 +195,7 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version")"
           # Use a new semver version: jsDelivr keeps the old 1.15.0 package cached.
-          test "$version" = "1.15.5"
+          test "$version" = "1.15.6"
           if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
             echo "Tag $version already exists; keeping the immutable release tag."
           else
@@ -208,10 +213,10 @@ jobs:
             "gh/p4veu/ttcc/package.json" \
             "gh/p4veu/ttcc@latest/package.json" \
             "gh/p4veu/ttcc@1.15.5/package.json" \
-            "gh/p4veu/ttcc/dist/userScript.v27-launch-compatible.js" \
-            "gh/p4veu/ttcc/dist/service.v27-launch-compatible.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/userScript.v27-launch-compatible.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/service.v27-launch-compatible.js"; do
+            "gh/p4veu/ttcc/dist/userScript.v28-play-pause-recovery.js" \
+            "gh/p4veu/ttcc/dist/service.v28-play-pause-recovery.js" \
+            "gh/p4veu/ttcc@1.15.5/dist/userScript.v28-play-pause-recovery.js" \
+            "gh/p4veu/ttcc@1.15.5/dist/service.v28-play-pause-recovery.js"; do
             response="$(curl --fail --silent --show-error --retry 3 "https://purge.jsdelivr.net/${path}")"
             echo "${path}: ${response}"
             echo "${response}" | grep -q '"throttled": false'
@@ -245,10 +250,10 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v27-launch-compatible.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v27-launch-compatible.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v27-launch-compatible.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' && echo "$body" | grep -q '"version": "1.15.5"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
-              echo "Existing TizenBrew module URL now serves .27."
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v28-play-pause-recovery.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v28-play-pause-recovery.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"version": "1.15.6"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
+              echo "Existing TizenBrew module URL now serves .28."
               exit 0
             fi
             echo "Existing module URL still stale; retry $i/60..."
@@ -266,14 +271,14 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --fail --silent --show-error "${base}/package.json" || true)"
             echo "$body"
-            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v27-launch-compatible.js" || true)"
-            service="$(curl --fail --silent --show-error "${base}/dist/service.v27-launch-compatible.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v27-launch-compatible.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v27-launch-compatible.js"' && echo "$body" | grep -q '"version": "1.15.5"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
+            script="$(curl --fail --silent --show-error "${base}/dist/userScript.v28-play-pause-recovery.js" || true)"
+            service="$(curl --fail --silent --show-error "${base}/dist/service.v28-play-pause-recovery.js" || true)"
+            if echo "$body" | grep -q '"main": "dist/userScript.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v28-play-pause-recovery.js"' && echo "$body" | grep -q '"version": "1.15.6"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
               echo "Pinned jsDelivr release is verified."
               exit 0
             fi
             echo "Pinned CDN URL not ready; retry $i/60..."
             sleep 5
           done
-          echo "Pinned jsDelivr release did not return the expected .25 files."
+          echo "Pinned jsDelivr release did not return the expected .28 files."
           exit 1
