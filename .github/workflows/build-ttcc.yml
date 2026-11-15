@@ -163,6 +163,7 @@ jobs:
           grep -q "ttcc/next" dist/service.js
           grep -q "ttcc/screen" dist/service.js
           grep -q "ttcc/playlist" dist/service.js
+          grep -q "ttcc/status" dist/service.js
           grep -q "auto_screen_off" dist/service.js
           grep -q "ttcc-chapters" dist/userScript.js
           grep -q "chapterCount" dist/service.js
@@ -270,7 +271,7 @@ jobs:
             echo "$body"
             script="$(curl --fail --silent --show-error "${base}/dist/userScript.v29-legacy-chromium.js" || true)"
             service="$(curl --fail --silent --show-error "${base}/dist/service.v29-legacy-chromium.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
+            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *"ttcc/status"* ]] && [[ "$service" == *"p4veu/ttcc"* ]]; then
               echo "Existing TizenBrew module URL now serves .29."
               exit 0
             fi
@@ -291,7 +292,7 @@ jobs:
             echo "$body"
             script="$(curl --fail --silent --show-error "${base}/dist/userScript.v29-legacy-chromium.js" || true)"
             service="$(curl --fail --silent --show-error "${base}/dist/service.v29-legacy-chromium.js" || true)"
-            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *1.15.5* ]]; then
+            if echo "$body" | grep -q '"main": "dist/userScript.v29-legacy-chromium.js"' && echo "$body" | grep -q '"serviceFile": "dist/service.v29-legacy-chromium.js"' && echo "$body" | grep -q '"version": "1.15.7"' && [[ "$script" == *standby-reload-wait* ]] && [[ "$script" == *focus-paused-detected* ]] && [[ "$script" == *pause-candidate* ]] && [[ "$script" != *startup-stale-session* ]] && [[ "$service" == *"ttcc/status"* ]]; then
               echo "Pinned jsDelivr .29 release is verified."
               exit 0
             fi
