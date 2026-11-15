@@ -221,7 +221,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           # Invalidate the unversioned TizenBrew URL plus jsDelivr's latest/stable
-          # semver resolution and the immutable .27 paths. Purging only package.json
+          # semver resolution and the new .29 assets. Purging only package.json
           # at the unversioned path left jsDelivr serving the previous manifest.
           for path in \
             "gh/p4veu/ttcc/package.json" \
@@ -231,8 +231,6 @@ jobs:
             "gh/p4veu/ttcc@1.15.7/package.json" \
             "gh/p4veu/ttcc/dist/userScript.v29-legacy-chromium.js" \
             "gh/p4veu/ttcc/dist/service.v29-legacy-chromium.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/userScript.v29-legacy-chromium.js" \
-            "gh/p4veu/ttcc@1.15.5/dist/service.v29-legacy-chromium.js" \
             "gh/p4veu/ttcc@1.15.6/dist/userScript.v28-play-pause-recovery.js" \
             "gh/p4veu/ttcc@1.15.6/dist/service.v28-play-pause-recovery.js" \
             "gh/p4veu/ttcc@1.15.7/dist/userScript.v29-legacy-chromium.js" \
